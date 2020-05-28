@@ -72,7 +72,7 @@ namespace irods_Csharp
         /// <param name="file">Byte array which should be written</param>
         public void Write(string path,byte[] file)
         {
-            using (DataObj dataObj = Open(_home + path, Options.FileMode.Write, true))
+            using (DataObj dataObj = Open(path, Options.FileMode.Write, true))
             {
                 dataObj.Write(file);
             }
@@ -86,7 +86,7 @@ namespace irods_Csharp
         /// <returns>Content of data object in byte array form</returns>
         public byte[] Read(string path, int length = -1)
         {
-            using (DataObj dataObj = Open(_home + path, Options.FileMode.Read))
+            using (DataObj dataObj = Open(path, Options.FileMode.Read))
             {
                 return dataObj.Read(length);
             }
