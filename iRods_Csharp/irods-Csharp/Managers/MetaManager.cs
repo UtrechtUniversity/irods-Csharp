@@ -1,58 +1,57 @@
-﻿namespace irods_Csharp
+﻿namespace irods_Csharp;
+
+public class MetaManager
 {
-    public class MetaManager
+    private readonly IrodsSession _session;
+    private readonly Path _home;
+
+    /// <summary>
+    /// Constructor for metadata manager.
+    /// </summary>
+    /// <param name="session">Session which contains account and connection</param>
+    /// <param name="home">Path to home directory</param>
+    public MetaManager(IrodsSession session, string home)
     {
-        private readonly IrodsSession _session;
-        private readonly Path _home;
+        _session = session;
+        _home = new Path(home);
+    }
 
-        /// <summary>
-        /// Constructor for metadata manager.
-        /// </summary>
-        /// <param name="session">Session which contains account and connection</param>
-        /// <param name="home">Path to home directory</param>
-        public MetaManager(IrodsSession session, string home)
+    /// <summary>
+    /// Add metadata to taggable object.
+    /// </summary>
+    /// <param name="obj">Object to which metadata should be added</param>
+    /// <param name="name">Metadata name</param>
+    /// <param name="value">Metadata value</param>
+    /// <param name="units">Metadata units, these are optional</param>
+    public void AddMeta(ITaggable obj,  string name, string value, int units = -1)
+    {
+        Packet<ModAVUMetadataInp_PI> addMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
         {
-            _session = session;
-            _home = new Path(home);
-        }
+            MsgBody = new ModAVUMetadataInp_PI("add", obj.MetaType(), _home + obj.Path(), name, value, units)
+        };
 
-        /// <summary>
-        /// Add metadata to taggable object.
-        /// </summary>
-        /// <param name="obj">Object to which metadata should be added</param>
-        /// <param name="name">Metadata name</param>
-        /// <param name="value">Metadata value</param>
-        /// <param name="units">Metadata units, these are optional</param>
-        public void AddMeta(ITaggable obj,  string name, string value, int units = -1)
+        _session.SendPacket(addMetaRequest);
+
+        _session.ReceivePacket<None>();
+    }
+
+    /// <summary>
+    /// Removes metadata from taggable object.
+    /// </summary>
+    /// <param name="obj">Object from which metadata should be removed</param>
+    /// <param name="name">Metadata name</param>
+    /// <param name="value">Metadata value</param>
+    /// <param name="units">Metadata units, these are optional</param>
+    // TODO test removal of meta tags with and without units
+    public void RemoveMeta(ITaggable obj, string name, string value, int units = -1)
+    {
+        Packet<ModAVUMetadataInp_PI> removeMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
         {
-            Packet<ModAVUMetadataInp_PI> addMetaRequest = new Packet<ModAVUMetadataInp_PI>(ApiNumberData.MOD_AVU_METADATA_AN)
-            {
-                MsgBody = new ModAVUMetadataInp_PI("add", obj.MetaType(), _home + obj.Path(), name, value, units)
-            };
+            MsgBody = new ModAVUMetadataInp_PI("rm", obj.MetaType(), _home + obj.Path(), name, value, units)
+        };
 
-            _session.SendPacket(addMetaRequest);
+        _session.SendPacket(removeMetaRequest);
 
-            _session.ReceivePacket<None>();
-        }
-
-        /// <summary>
-        /// Removes metadata from taggable object.
-        /// </summary>
-        /// <param name="obj">Object from which metadata should be removed</param>
-        /// <param name="name">Metadata name</param>
-        /// <param name="value">Metadata value</param>
-        /// <param name="units">Metadata units, these are optional</param>
-        // TODO test removal of meta tags with and without units
-        public void RemoveMeta(ITaggable obj, string name, string value, int units = -1)
-        {
-            Packet<ModAVUMetadataInp_PI> removeMetaRequest = new Packet<ModAVUMetadataInp_PI>(ApiNumberData.MOD_AVU_METADATA_AN)
-            {
-                MsgBody = new ModAVUMetadataInp_PI("rm", obj.MetaType(), _home + obj.Path(), name, value, units)
-            };
-
-            _session.SendPacket(removeMetaRequest);
-
-            _session.ReceivePacket<None>();
-        }
+        _session.ReceivePacket<None>();
     }
 }
