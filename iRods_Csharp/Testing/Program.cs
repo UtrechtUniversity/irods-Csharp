@@ -21,7 +21,7 @@ namespace Testing
             Dictionary<string, string> accountOptions = Utility.LoadJson(accountLocation);
             string passwordLocation = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"..\..\..\password.txt"));
 
-            IrodsSession testSession = new IrodsSession(accountOptions["irods_host"], int.Parse(accountOptions["irods_port"]), accountOptions["irods_home"], accountOptions["irods_user_name"], accountOptions["irods_zone_name"], accountOptions["irods_authentication_scheme"], 1);
+            IrodsSession testSession = new IrodsSession(accountOptions["irods_host"], int.Parse(accountOptions["irods_port"]), accountOptions["irods_home"], accountOptions["irods_user_name"], accountOptions["irods_zone_name"], AuthenticationScheme.Pam, 1, null);
 
             bool connected = false;
             while (!connected)

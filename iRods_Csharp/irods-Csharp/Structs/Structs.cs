@@ -1,15 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Text;
+using System.Xml.Linq;
 // ReSharper disable EmptyConstructor
 // ReSharper disable NotAccessedField.Local
 // ReSharper disable InconsistentNaming
 // ReSharper disable UnusedMember.Global
 
 namespace irods_Csharp;
-
 internal abstract class IRodsMessage
 {
     /// <summary>
@@ -60,64 +62,40 @@ internal abstract class IRodsMessage
     /// <returns>The deserialized object.</returns>
     internal static T Deserialize<T>(byte[] bytes) where T : IRodsMessage, new()
     {
-        string a = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
-        return (T)Parse(a);
+        string content = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+        return (T)Parse(XElement.Load(content));
     }
 
     /// <summary>
-    /// Turns a XML string into a IRodsMessage.
+    /// Turns a XML into a IRodsMessage.
     /// </summary>
-    /// <param name="content">The string to turn into an IRodsMessage.</param>
+    /// <param name="content">The xml to turn into an IRodsMessage.</param>
     /// <returns>The IRodsMessage created with the string.</returns>
-    internal static IRodsMessage Parse(string content)
-    {
-        string[] lines = content.Split(new[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
+    public static IRodsMessage Parse(XElement content)
+    { 
+        IRodsMessage message = (IRodsMessage)Activator.CreateInstance(Type.GetType("irods_Csharp." + content.Name.LocalName)!)!;
 
-        IRodsMessage message = (IRodsMessage)Activator.CreateInstance(Type.GetType("irods_Csharp." + lines[0][1..^1])!)!;
-
-        for (int i = 1; i < lines.Length - 1; i++)
+        foreach (XElement item in content.Descendants())
         {
-            string[] d = lines[i].Split(new[] { "</", "<", ">" }, StringSplitOptions.RemoveEmptyEntries);
+            string fieldName = item.Name.LocalName;
+            FieldInfo field = message.GetType().GetField(fieldName)!;
 
             object value;
-            Type type = message.GetType().GetField(d[0])!.FieldType;
-            if (type == typeof(int)) value = int.Parse(d[1]);
-            else if (type == typeof(string)) value = d[1];
-            else if (type == typeof(double)) value = double.Parse(d[1]);
-            else if (type == typeof(IRodsMessage)) value = Parse(d[1]);
-            else if (type == typeof(SqlResult_PI[])) value = DecodeSqlResult(lines, ref i);
+
+            Type type = field.FieldType;
+            if (type == typeof(int)) value = int.Parse(item.Value);
+            else if (type == typeof(string)) value = item.Value;
+            else if (type == typeof(double)) value = double.Parse(item.Value);
+            else if (type == typeof(IRodsMessage)) value = Parse(item);
+            //TODO verify
+            else if (type == typeof(string[])) value = item.Elements().Select(element => element.Value).ToArray();
+            else if (type == typeof(SqlResult_PI[])) value = item.Elements().Select(element => (SqlResult_PI)Parse(element)).ToArray();
             else throw new Exception($"Type: {type.Name} not handled in deserialize.");
 
-            message.GetType().GetField(d[0])!.SetValue(message, value);
+            field.SetValue(message, value);
         }
-        return message;
-    }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="lines"></param>
-    /// <param name="i"></param>
-    /// <returns></returns>
-    public static SqlResult_PI[] DecodeSqlResult(string[] lines, ref int i)
-    {
-        List<SqlResult_PI> results = new ();
-        while(lines[i] != "</GenQueryOut_PI>")
-        {
-            i++;
-            int attriInx = int.Parse(lines[i].Substring(10, lines[i].Length - 21));
-            int reslen = int.Parse(lines[i+1].Substring(8, lines[i+1].Length - 17));
-            i += 2;
-            List<string> values = new ();
-            while (lines[i] != "</SqlResult_PI>")
-            {
-                values.Add(lines[i].Substring(7, lines[i].Length - 15));
-                i++;
-            }
-            results.Add(new SqlResult_PI(attriInx, reslen, values.ToArray()));
-            i++;
-        }
-        return results.ToArray();
+        return message;
     }
 }
 
@@ -144,6 +122,7 @@ internal class Packet<T> where T : IRodsMessage
 }
 
 #region General
+
 internal class MsgHeader_PI : IRodsMessage
 {
     public string type;
@@ -236,16 +215,16 @@ internal class CS_NEG_PI : IRodsMessage
 
     public CS_NEG_PI(ClientServerPolicyResult policyResult)
     {
-        status = policyResult is ClientServerPolicyResult.failure ? 0 : 1;
+        status = policyResult is ClientServerPolicyResult.Failure ? 0 : 1;
         result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}";
     }
 
     private static string ClientServerPolicyToString(ClientServerPolicyResult policyResult) =>
         policyResult switch
         {
-            ClientServerPolicyResult.useTCP => "CS_NEG_USE_TCP",
-            ClientServerPolicyResult.useSSL => "CS_NEG_USE_SSL",
-            ClientServerPolicyResult.failure => "CS_NEG_FAILURE",
+            ClientServerPolicyResult.UseTCP => "CS_NEG_USE_TCP",
+            ClientServerPolicyResult.UseSSL => "CS_NEG_USE_SSL",
+            ClientServerPolicyResult.Failure => "CS_NEG_FAILURE",
             _ => throw new ArgumentOutOfRangeException(nameof(policyResult), policyResult, null)
         };
 

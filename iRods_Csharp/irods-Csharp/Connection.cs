@@ -64,10 +64,10 @@ internal class Connection : IDisposable
             ClientServerPolicyResult agreedPolicy = (clientPolicy, serverPolicy) switch
             {
                 (ClientServerPolicyRequest.RequireSSL, ClientServerPolicyRequest.RequireSSL) => ClientServerPolicyResult
-                    .useSSL,
+                    .UseSSL,
                 (ClientServerPolicyRequest.RefuseSSL, ClientServerPolicyRequest.RefuseSSL) => ClientServerPolicyResult
-                    .useTCP,
-                _ => ClientServerPolicyResult.failure
+                    .UseTCP,
+                _ => ClientServerPolicyResult.Failure
             };
 
             Packet<CS_NEG_PI> negotationRequest = new (type: MessageType.CLIENT_SERVER_NEGOTIATION)
@@ -76,7 +76,7 @@ internal class Connection : IDisposable
             };
             SendPacket(negotationRequest);
 
-            if (agreedPolicy is ClientServerPolicyResult.failure)
+            if (agreedPolicy is ClientServerPolicyResult.Failure)
             {
                 _serverStream.Dispose();
                 throw new Exception(
@@ -237,7 +237,7 @@ internal class Connection : IDisposable
     /// Sends the specified bytes to the server with an optional 4 byte length header.
     /// </summary>
     /// <param name="bytes">The bytes to send to the server.</param>
-    /// <param name="header">Wether to send a 4 byte header or not.</param>
+    /// <param name="header">Whether to send a 4 byte header or not.</param>
     private void SendBytes(byte[] bytes, bool header)
     {
         if (header) _serverStream.Write(BitConverter.GetBytes(bytes.Length).Reverse().ToArray(), 0, 4);

@@ -19,15 +19,15 @@ public enum ClientServerPolicyResult
     /// <summary>
     /// Use SSL
     /// </summary>
-    useSSL,
+    UseSSL,
 
     /// <summary>
     /// Use tcp without SSL.
     /// </summary>
-    useTCP,
+    UseTCP,
 
     /// <summary>
     /// Couldn't find common protocol.
     /// </summary>
-    failure
+    Failure
 }
