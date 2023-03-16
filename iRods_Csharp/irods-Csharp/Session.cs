@@ -25,10 +25,11 @@ public class IrodsSession : IDisposable
     /// <param name="zone">The zone.</param>
     /// <param name="scheme">The authentication scheme.</param>
     /// <param name="ttl">The hour the password secret will stay valid</param>
-    public IrodsSession(string host, int port, string home, string user, string zone, AuthenticationScheme scheme, int ttl)
+    /// <param name="requestServerNegotiation">Optional request server negotiation.</param>
+    public IrodsSession(string host, int port, string home, string user, string zone, AuthenticationScheme scheme, int ttl, ClientServerNegotiation? requestServerNegotiation)
     {
         _account = new Account(host, port, home, user, zone, scheme, ttl);
-        _connection = new Connection(_account);
+        _connection = new Connection(_account, requestServerNegotiation);
 
         DataObjects = new DataObjectManager(this, _account.Home);
         Collections = new CollectionManager(this, _account.Home);

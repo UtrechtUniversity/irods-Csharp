@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 // ReSharper disable EmptyConstructor
@@ -15,10 +16,7 @@ internal abstract class IRodsMessage
     /// Turns the object into xml form and encodes this using the UTF8 format.
     /// </summary>
     /// <returns>The byte[] containing the serialized object.</returns>
-    public byte[] Serialize()
-    {
-        return Encoding.UTF8.GetBytes(ToString());
-    }
+    public byte[] Serialize() => Encoding.UTF8.GetBytes(ToString());
 
     /// <summary>
     /// Turns the object into a XML string.
@@ -75,7 +73,7 @@ internal abstract class IRodsMessage
     {
         string[] lines = content.Split(new[] { "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-        IRodsMessage message = (IRodsMessage)Activator.CreateInstance(Type.GetType("irods_Csharp." + lines[0].Substring(1, lines[0].Length - 2))!)!;
+        IRodsMessage message = (IRodsMessage)Activator.CreateInstance(Type.GetType("irods_Csharp." + lines[0][1..^1])!)!;
 
         for (int i = 1; i < lines.Length - 1; i++)
         {
@@ -126,9 +124,9 @@ internal abstract class IRodsMessage
 internal class Packet<T> where T : IRodsMessage
 {
     public MsgHeader_PI MsgHeader;
-    public T MsgBody;
-    public RError_PI Error;
-    public byte[] Binary;
+    public T? MsgBody;
+    public RError_PI? Error;
+    public byte[]? Binary;
         
     public Packet() { }
 
@@ -228,6 +226,38 @@ internal class StartupPack_PI : IRodsMessage
         this.option = option;
     }
 }
+
+internal class CS_NEG_PI : IRodsMessage
+{
+    public int status;
+    public string result;
+
+    public CS_NEG_PI() { }
+
+    public CS_NEG_PI(ClientServerPolicyResult policyResult)
+    {
+        status = policyResult is ClientServerPolicyResult.failure ? 0 : 1;
+        result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}";
+    }
+
+    private static string ClientServerPolicyToString(ClientServerPolicyResult policyResult) =>
+        policyResult switch
+        {
+            ClientServerPolicyResult.useTCP => "CS_NEG_USE_TCP",
+            ClientServerPolicyResult.useSSL => "CS_NEG_USE_SSL",
+            ClientServerPolicyResult.failure => "CS_NEG_FAILURE",
+            _ => throw new ArgumentOutOfRangeException(nameof(policyResult), policyResult, null)
+        };
+
+    public ClientServerPolicyRequest ServerPolicy =>
+        result switch
+        {
+            "CS_NEG_REQUIRE" => ClientServerPolicyRequest.RequireSSL,
+            "CS_NEG_REFUSE" => ClientServerPolicyRequest.RefuseSSL,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+}
+
 internal class Version_PI : IRodsMessage
 {
     public int status;

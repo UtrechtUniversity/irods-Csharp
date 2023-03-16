@@ -13,20 +13,23 @@ namespace irods_Csharp;
 internal class Connection : IDisposable
 {
     private readonly Account _account;
+    private readonly ClientServerNegotiation? _requestServerNegotiation;
     private Stream _serverStream;
 
     /// <summary>
     /// Connection constructor.
     /// </summary>
     /// <param name="account">Used for connecting and verification.</param>
-    public Connection(Account account)
+    /// <param name="requestServerNegotiation"></param>
+    public Connection(Account account, ClientServerNegotiation? requestServerNegotiation)
     {
         _account = account;
+        _requestServerNegotiation = requestServerNegotiation;
         Connect();
     }
 
     /// <summary>
-    /// Creates a connection to the server and sends a RODS_CONNECT message for identifcation.
+    /// Creates a connection to the server and sends a RODS_CONNECT message for identification.
     /// </summary>
     public void Connect()
     {
@@ -37,11 +40,50 @@ internal class Connection : IDisposable
             ReadTimeout = 5000
         };
 
-        Packet<StartupPack_PI> connectionRequest = new (type: MessageType.CONNECT)
+
+        if (_requestServerNegotiation == null)
         {
-            MsgBody = _account.MakeStartupPack()
-        };
-        SendPacket(connectionRequest);
+            Packet<StartupPack_PI> connectionRequest = new (type: MessageType.CONNECT)
+            {
+                MsgBody = _account.MakeStartupPack()
+            };
+            SendPacket(connectionRequest);
+        }
+        else
+        {
+            ClientServerPolicyRequest clientPolicy = _requestServerNegotiation.ClientServerPolicy;
+
+            Packet<StartupPack_PI> connectionRequest = new (type: MessageType.CONNECT)
+            {
+                MsgBody = _account.MakeStartupPack("request_server_negotiation")
+            };
+            SendPacket(connectionRequest);
+
+            ClientServerPolicyRequest serverPolicy = ReceivePacket<CS_NEG_PI>().MsgBody!.ServerPolicy;
+
+            ClientServerPolicyResult agreedPolicy = (clientPolicy, serverPolicy) switch
+            {
+                (ClientServerPolicyRequest.RequireSSL, ClientServerPolicyRequest.RequireSSL) => ClientServerPolicyResult
+                    .useSSL,
+                (ClientServerPolicyRequest.RefuseSSL, ClientServerPolicyRequest.RefuseSSL) => ClientServerPolicyResult
+                    .useTCP,
+                _ => ClientServerPolicyResult.failure
+            };
+
+            Packet<CS_NEG_PI> negotationRequest = new (type: MessageType.CLIENT_SERVER_NEGOTIATION)
+            {
+                MsgBody = new CS_NEG_PI(agreedPolicy)
+            };
+            SendPacket(negotationRequest);
+
+            if (agreedPolicy is ClientServerPolicyResult.failure)
+            {
+                _serverStream.Dispose();
+                throw new Exception(
+                    $"Failed to negotiate policy, client wants: {clientPolicy} while server wants: {serverPolicy}"
+                );
+            }
+        }
 
         ReceivePacket<Version_PI>();
     }
@@ -126,8 +168,8 @@ internal class Connection : IDisposable
     {
         WriteLog(ConsoleColor.DarkGray, packet);
 
-        byte[] msgBytes = null;
-        byte[] errorBytes = null;
+        byte[]? msgBytes = null;
+        byte[]? errorBytes = null;
 
         if (packet.MsgBody != null)
         {
@@ -149,8 +191,8 @@ internal class Connection : IDisposable
         byte[] msgHeaderClientBytes = packet.MsgHeader.Serialize();
         SendBytes(msgHeaderClientBytes, true);
 
-        if (packet.MsgBody != null) SendBytes(msgBytes, false);
-        if (packet.Error != null) SendBytes(errorBytes, false);
+        if (msgBytes != null) SendBytes(msgBytes, false);
+        if (errorBytes != null) SendBytes(errorBytes, false);
         if (packet.Binary != null) SendBytes(packet.Binary, false);
     }
 
@@ -168,9 +210,11 @@ internal class Connection : IDisposable
         WriteLog(ConsoleColor.Gray, packet);
         if (packet.MsgHeader.intInfo >= 0) return packet;
 
-        Exception e = new (Table.ApiErrorData[packet.MsgHeader.intInfo]);
-        e.Data["error"] = packet.Error;
-        e.Data["body"] = packet.MsgBody;
+        Exception e =
+            new (Table.ApiErrorData[packet.MsgHeader.intInfo])
+            {
+                Data = { ["error"] = packet.Error, ["body"] = packet.MsgBody }
+            };
         throw e;
     }
 
@@ -179,10 +223,7 @@ internal class Connection : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <returns>The IRodsMessage received from the server.</returns>
-    private T ReceiveMessage<T>() where T : IRodsMessage, new()
-    {
-        return IRodsMessage.Deserialize<T>(ReceiveBytes(BitConverter.ToInt32(ReceiveBytes(4).Reverse().ToArray(), 0)));
-    }
+    private T ReceiveMessage<T>() where T : IRodsMessage, new() => IRodsMessage.Deserialize<T>(ReceiveBytes(BitConverter.ToInt32(ReceiveBytes(4).Reverse().ToArray(), 0)));
 
     /// <summary>
     /// Receives an IRodsMessage with the specified byte length from the server.
@@ -190,11 +231,8 @@ internal class Connection : IDisposable
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <param name="length">The amount of bytes to receive from the server.</param>
     /// <returns>The IRodsMessage received from the server.</returns>
-    private T ReceiveMessage<T>(int length) where T : IRodsMessage, new()
-    {
-        return IRodsMessage.Deserialize<T>(ReceiveBytes(length));
-    }
-        
+    private T ReceiveMessage<T>(int length) where T : IRodsMessage, new() => IRodsMessage.Deserialize<T>(ReceiveBytes(length));
+
     /// <summary>
     /// Sends the specified bytes to the server with an optional 4 byte length header.
     /// </summary>

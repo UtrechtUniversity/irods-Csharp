@@ -12,6 +12,7 @@ internal static class MessageType
     public const string API_REPLY = "RODS_API_REPLY";
     public const string REAUTH = "RODS_REAUTH";
     public const string VERSION = "RODS_VERSION";
+    public const string CLIENT_SERVER_NEGOTIATION = "RODS_CS_NEG_T";
 }
 
 //https://github.com/irods/irods/blob/master/lib/api/include/apiNumberData.h
