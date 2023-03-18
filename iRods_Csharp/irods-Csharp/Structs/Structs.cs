@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
@@ -18,15 +19,27 @@ public abstract class Message
 }
 
 public class Packet<T>
-    where T : Message
+    where T : Message, new()
 {
     public MsgHeaderPi MsgHeader { get; set; }
-    public T? MsgBody { get; set; }
-    public RErrorPi? Error { get; set; }
+    public byte[]? MsgBodyBytes { get; set; }
+
+    public T? MsgBody
+    {
+        get => MsgBodyBytes == null ? null : MessageSerializer.Deserialize<T>(MsgBodyBytes);
+        set => MsgBodyBytes = value == null ? null : MessageSerializer.Serialize(value);
+    }
+    public byte[]? ErrorBytes { get; set; }
+    public RErrorPi? Error
+    {
+        get => ErrorBytes == null ? null : MessageSerializer.Deserialize<RErrorPi>(ErrorBytes);
+        set => ErrorBytes = value == null ? null : MessageSerializer.Serialize(value);
+    }
     public byte[]? Binary { get; set; }
 
     public Packet()
     {
+        MsgHeader = null!;
     }
 
     public Packet(int intInfo = 0, string type = MessageType.API_REQ)

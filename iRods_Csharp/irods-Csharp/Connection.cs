@@ -4,6 +4,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Linq;
 using static irods_Csharp.Utility;
+using System.Security.Cryptography;
 
 namespace irods_Csharp;
 
@@ -47,6 +48,8 @@ internal class Connection : IDisposable
                 MsgBody = _account.MakeStartupPack()
             };
             SendPacket(connectionRequest);
+
+            ReceivePacket<VersionPi>();
         }
         else
         {
@@ -82,16 +85,26 @@ internal class Connection : IDisposable
             };
             SendPacket(negotationRequest);
 
-            if (agreedPolicy is ClientServerPolicyResult.Failure)
+            ReceivePacket<VersionPi>();
+
+            switch (agreedPolicy)
             {
-                _serverStream.Dispose();
-                throw new Exception(
-                    $"Failed to negotiate policy, client wants: {clientPolicy} while server wants: {serverPolicy}"
-                );
+                case ClientServerPolicyResult.Failure:
+                    _serverStream.Dispose();
+                    throw new Exception(
+                        $"Failed to negotiate policy, client wants: {clientPolicy} while server wants: {serverPolicy}"
+                    );
+                case ClientServerPolicyResult.UseSSL:
+                    SecureWithSecret(_requestServerNegotiation);
+                    break;
+                case ClientServerPolicyResult.UseTCP:
+                    // Continue as normal.
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
 
-        ReceivePacket<VersionPi>();
     }
 
     /// <summary>
@@ -103,6 +116,35 @@ internal class Connection : IDisposable
         SendPacket(disconnectRequest);
 
         _serverStream.Dispose();
+    }
+
+    /// <summary>
+    /// Asks the server to start SSL and creates and replaces the _serverStream NetworkStream with an SslStream.
+    /// </summary>
+    public void SecureWithSecret(ClientServerNegotiation negotiation)
+    {
+        SslStream secureServerStream = new (_serverStream, false);
+        secureServerStream.AuthenticateAsClient(_account.Host);
+
+        Packet<None> encryptionRequest = new ()
+        {
+            MsgHeader = new MsgHeaderPi(
+                negotiation.Algorithm,
+                negotiation.KeySize,
+                negotiation.SaltSize,
+                negotiation.HashRounds,
+                0
+            )
+        };
+        SendPacket(encryptionRequest);
+
+        Packet<None> keyRequest = new (type: "SHARED_SECRET")
+        {
+            MsgBodyBytes = RandomNumberGenerator.GetBytes(negotiation.KeySize)
+        };
+        SendPacket(keyRequest);
+
+        _serverStream = secureServerStream;
     }
 
     /// <summary>
@@ -137,7 +179,7 @@ internal class Connection : IDisposable
 
         Packet<AuthResponseInpPi> authResponse = new (ApiNumberData.AUTH_RESPONSE_AN)
         {
-            MsgBody = _account.GenerateAuthResponse(password, authRequestReply.MsgBody.Challenge)
+            MsgBody = _account.GenerateAuthResponse(password, authRequestReply.MsgBody!.Challenge)
         };
         SendPacket(authResponse);
 
@@ -151,7 +193,7 @@ internal class Connection : IDisposable
     /// <returns>The PAM password.</returns>
     public string Pam(string password)
     {
-        Secure();
+        if (_serverStream is not SslStream) Secure();
 
         Packet<AuthPlugReqInpPi> msgHeaderStructClient = new (ApiNumberData.AUTH_PLUG_REQ_AN)
         {
@@ -162,7 +204,7 @@ internal class Connection : IDisposable
 
         Packet<AuthPlugReqOutPi> msgHeaderStructServer = ReceivePacket<AuthPlugReqOutPi>();
 
-        return msgHeaderStructServer.MsgBody.Result;
+        return msgHeaderStructServer.MsgBody!.Result;
     }
 
     /// <summary>
@@ -170,36 +212,27 @@ internal class Connection : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <param name="packet">The packet to send to the server.</param>
-    public void SendPacket<T>(Packet<T> packet) where T : Message
+    public void SendPacket<T>(Packet<T> packet)
+        where T : Message, new()
     {
         WriteLog(ConsoleColor.DarkGray, packet);
-
-        byte[]? msgBytes = null;
-        byte[]? errorBytes = null;
-
-        if (packet.MsgBody != null)
-        {
-            msgBytes = MessageSerializer.Serialize(packet.MsgBody);
-            packet.MsgHeader.MsgLen = msgBytes.Length;
-        }
-
-        if (packet.Error != null)
-        {
-            errorBytes = MessageSerializer.Serialize(packet.Error);
-            packet.MsgHeader.ErrorLen = errorBytes.Length;
-        }
-
-        if (packet.Binary != null)
-        {
-            packet.MsgHeader.BsLen = packet.Binary.Length;
-        }
+         
+        if (packet.MsgBodyBytes != null) packet.MsgHeader.MsgLen = packet.MsgBodyBytes.Length;
+        if (packet.ErrorBytes != null) packet.MsgHeader.ErrorLen = packet.ErrorBytes.Length;
+        if (packet.Binary != null) packet.MsgHeader.BsLen = packet.Binary.Length;
 
         byte[] msgHeaderClientBytes = MessageSerializer.Serialize(packet.MsgHeader);
-        SendBytes(msgHeaderClientBytes, true);
 
-        if (msgBytes != null) SendBytes(msgBytes, false);
-        if (errorBytes != null) SendBytes(errorBytes, false);
-        if (packet.Binary != null) SendBytes(packet.Binary, false);
+        // Make sure the bytes are send out in the correct order.
+        byte[] headerBytes = BitConverter.GetBytes(msgHeaderClientBytes.Length);
+        if (BitConverter.IsLittleEndian) headerBytes = headerBytes.Reverse().ToArray();
+
+        SendBytes(headerBytes);
+        SendBytes(msgHeaderClientBytes);
+
+        if (packet.MsgBodyBytes != null) SendBytes(packet.MsgBodyBytes);
+        if (packet.ErrorBytes != null) SendBytes(packet.ErrorBytes);
+        if (packet.Binary != null) SendBytes(packet.Binary);
     }
 
     /// <summary>
@@ -243,10 +276,9 @@ internal class Connection : IDisposable
     /// Sends the specified bytes to the server with an optional 4 byte length header.
     /// </summary>
     /// <param name="bytes">The bytes to send to the server.</param>
-    /// <param name="header">Whether to send a 4 byte header or not.</param>
-    private void SendBytes(byte[] bytes, bool header)
+    private void SendBytes(byte[] bytes)
     {
-        if (header) _serverStream.Write(BitConverter.GetBytes(bytes.Length).Reverse().ToArray(), 0, 4);
+        if (bytes.Length == 0) return;
         _serverStream.Write(bytes, 0, bytes.Length);
     }
 
