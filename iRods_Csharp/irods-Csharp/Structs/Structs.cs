@@ -1,222 +1,211 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 using System.Text;
-using System.Xml.Linq;
+using System.Xml.Serialization;
+
 // ReSharper disable EmptyConstructor
 // ReSharper disable NotAccessedField.Local
-// ReSharper disable InconsistentNaming
 // ReSharper disable UnusedMember.Global
+[assembly: InternalsVisibleTo("Testing")]
 
 namespace irods_Csharp;
-internal abstract class IRodsMessage
+
+public abstract class Message
 {
-    /// <summary>
-    /// Turns the object into xml form and encodes this using the UTF8 format.
-    /// </summary>
-    /// <returns>The byte[] containing the serialized object.</returns>
-    public byte[] Serialize() => Encoding.UTF8.GetBytes(ToString());
-
-    /// <summary>
-    /// Turns the object into a XML string.
-    /// </summary>
-    /// <returns>The string in XML format.</returns>
-    public override string ToString()
-    {
-        string result = string.Empty;
-        result += $"<{GetType().Name}>\n";
-        foreach (FieldInfo Field in GetType().GetFields())
-        {
-            switch (Field.GetValue(this))
-            {
-                case object[] value:
-                    result += $"<{Field.Name}>[";
-                    for (int i = 0; i < value.Length; i++)
-                    {
-                        result += value[i];
-                        if (i < value.Length - 1) result += ",";
-                    }
-
-                    result += $"]</{Field.Name}>\n";
-                    break;
-                case IRodsMessage message:
-                    result += $"{message}\n";
-                    break;
-                case { } value:
-                    result += $"<{Field.Name}>{value}</{Field.Name}>\n";
-                    break;
-            }
-        }
-        result += $"</{GetType().Name}>";
-        return result;
-    }
-
-    /// <summary>
-    /// Deserializes the given byte[] into a IRodsMessage.
-    /// </summary>
-    /// <typeparam name="T">The type of the deserialized IRodsMessage.</typeparam>
-    /// <param name="bytes">The byte[] to deserialize.</param>
-    /// <returns>The deserialized object.</returns>
-    internal static T Deserialize<T>(byte[] bytes) where T : IRodsMessage, new()
-    {
-        string content = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
-        return (T)Parse(XElement.Load(content));
-    }
-
-    /// <summary>
-    /// Turns a XML into a IRodsMessage.
-    /// </summary>
-    /// <param name="content">The xml to turn into an IRodsMessage.</param>
-    /// <returns>The IRodsMessage created with the string.</returns>
-    public static IRodsMessage Parse(XElement content)
-    { 
-        IRodsMessage message = (IRodsMessage)Activator.CreateInstance(Type.GetType("irods_Csharp." + content.Name.LocalName)!)!;
-
-        foreach (XElement item in content.Descendants())
-        {
-            string fieldName = item.Name.LocalName;
-            FieldInfo field = message.GetType().GetField(fieldName)!;
-
-            object value;
-
-            Type type = field.FieldType;
-            if (type == typeof(int)) value = int.Parse(item.Value);
-            else if (type == typeof(string)) value = item.Value;
-            else if (type == typeof(double)) value = double.Parse(item.Value);
-            else if (type == typeof(IRodsMessage)) value = Parse(item);
-            //TODO verify
-            else if (type == typeof(string[])) value = item.Elements().Select(element => element.Value).ToArray();
-            else if (type == typeof(SqlResult_PI[])) value = item.Elements().Select(element => (SqlResult_PI)Parse(element)).ToArray();
-            else throw new Exception($"Type: {type.Name} not handled in deserialize.");
-
-            field.SetValue(message, value);
-        }
-
-        return message;
-    }
 }
 
-internal class Packet<T> where T : IRodsMessage
+public class Packet<T>
+    where T : Message
 {
-    public MsgHeader_PI MsgHeader;
-    public T? MsgBody;
-    public RError_PI? Error;
-    public byte[]? Binary;
-        
-    public Packet() { }
+    public MsgHeaderPi MsgHeader { get; set; }
+    public T? MsgBody { get; set; }
+    public RErrorPi? Error { get; set; }
+    public byte[]? Binary { get; set; }
+
+    public Packet()
+    {
+    }
 
     public Packet(int intInfo = 0, string type = MessageType.API_REQ)
     {
-        MsgHeader = new MsgHeader_PI(type, 0, 0, 0, intInfo);
+        MsgHeader = new MsgHeaderPi(type, 0, 0, 0, intInfo);
     }
 
     public override string ToString()
     {
         string result = "";
-        foreach (FieldInfo Field in GetType().GetFields()) if (Field.GetValue(this) != null) result += Field.GetValue(this) + "\n";
+        foreach (FieldInfo field in GetType().GetFields())
+            if (field.GetValue(this) != null)
+                result += field.GetValue(this) + "\n";
         return result;
     }
 }
 
 #region General
 
-internal class MsgHeader_PI : IRodsMessage
+[XmlType("MsgHeader_PI")]
+public class MsgHeaderPi : Message
 {
-    public string type;
-    public int msgLen;
-    public int errorLen;
-    public int bsLen;
-    public int intInfo;
+    [XmlElement("type")]
+    public string Type { get; set; }
 
-    public MsgHeader_PI() { }
+    [XmlElement("msgLen")]
+    public int MsgLen { get; set; }
 
-    public MsgHeader_PI(string type, int msgLen, int errorLen, int bsLen, int intInfo)
+    [XmlElement("errorLen")]
+    public int ErrorLen { get; set; }
+
+    [XmlElement("bsLen")]
+    public int BsLen { get; set; }
+
+    [XmlElement("intInfo")]
+    public int IntInfo { get; set; }
+
+    public MsgHeaderPi()
     {
-        this.type = type;
-        this.msgLen = msgLen;
-        this.errorLen = errorLen;
-        this.bsLen = bsLen;
-        this.intInfo = intInfo;
+    }
+
+    public MsgHeaderPi(string type, int msgLen, int errorLen, int bsLen, int intInfo)
+    {
+        Type = type;
+        MsgLen = msgLen;
+        ErrorLen = errorLen;
+        BsLen = bsLen;
+        IntInfo = intInfo;
     }
 }
 
-internal class RError_PI : IRodsMessage
+[XmlType("RError_PI")]
+public class RErrorPi : Message
 {
-    public int count;
-    public RErrMsg_PI[] RErrMsg_PI;
+    [XmlElement("count")]
+    public int Count { get; set; }
 
-    public RError_PI() { }
+    [XmlElement("RErrMsg_PI")]
+    public RErrMsgPi[] RErrMsgPi { get; set; }
 
-    public RError_PI(int count, RErrMsg_PI[] RErrMsg_PI)
+    public RErrorPi()
     {
-        this.count = count;
-        this.RErrMsg_PI = RErrMsg_PI;
+    }
+
+    public RErrorPi(int count, RErrMsgPi[] rErrMsgPi)
+    {
+        Count = count;
+        RErrMsgPi = rErrMsgPi;
     }
 }
 
-internal class RErrMsg_PI : IRodsMessage
+[XmlType("RErrMsg_PI")]
+public class RErrMsgPi : Message
 {
-    public int status;
-    public string msg;
+    [XmlElement("status")]
+    public int Status { get; set; }
 
-    public RErrMsg_PI(int status, string msg)
+    [XmlElement("msg")]
+    public string Msg { get; set; }
+
+    public RErrMsgPi(int status, string msg)
     {
-        this.status = status;
-        this.msg = msg;
+        Status = status;
+        Msg = msg;
     }
 }
 
-internal class None : IRodsMessage
+[XmlType("None")]
+public class None : Message
 {
-    public None() { }
+    public None()
+    {
+    }
 }
+
 #endregion
 
 #region Start
-internal class StartupPack_PI : IRodsMessage
+
+[XmlType("StartupPack_PI")]
+public class StartupPackPi : Message
 {
-    public int irodsProt;
-    public int reconnFlag;
-    public int connectCnt;
-    public string proxyUser;
-    public string proxyRcatZone;
-    public string clientUser;
-    public string clientRcatZone;
-    public string relVersion;
-    public string apiVersion;
-    public string option;
+    [XmlElement("irodsProt")]
+    public int IrodsProt { get; set; }
 
-    public StartupPack_PI() { }
+    [XmlElement("reconnFlag")]
+    public int ReconnFlag { get; set; }
 
-    public StartupPack_PI(Options.iRODSProt_t irodsProt, int reconnFlag, int connectCnt, string proxyUser, string proxyRcatZone, string clientUser, string clientRcatZone, string relVersion, string apiVersion, string option)
+    [XmlElement("connectCnt")]
+    public int ConnectCnt { get; set; }
+
+    [XmlElement("proxyUser")]
+    public string ProxyUser { get; set; }
+
+    [XmlElement("proxyRcatZone")]
+    public string ProxyRcatZone { get; set; }
+
+    [XmlElement("clientUser")]
+    public string ClientUser { get; set; }
+
+    [XmlElement("clientRcatZone")]
+    public string ClientRcatZone { get; set; }
+
+    [XmlElement("relVersion")]
+    public string RelVersion { get; set; }
+
+    [XmlElement("apiVersion")]
+    public string ApiVersion { get; set; }
+
+    [XmlElement("option")]
+    public string Option { get; set; }
+
+    public StartupPackPi()
     {
-        this.irodsProt = (int)irodsProt;
-        this.reconnFlag = reconnFlag;
-        this.connectCnt = connectCnt;
-        this.proxyUser = proxyUser;
-        this.proxyRcatZone = proxyRcatZone;
-        this.clientUser = clientUser;
-        this.clientRcatZone = clientRcatZone;
-        this.relVersion = relVersion;
-        this.apiVersion = apiVersion;
-        this.option = option;
+    }
+
+    public StartupPackPi(
+        Options.iRODSProt_t irodsProt,
+        int reconnFlag,
+        int connectCnt,
+        string proxyUser,
+        string proxyRcatZone,
+        string clientUser,
+        string clientRcatZone,
+        string relVersion,
+        string apiVersion,
+        string option
+    )
+    {
+        IrodsProt = (int)irodsProt;
+        ReconnFlag = reconnFlag;
+        ConnectCnt = connectCnt;
+        ProxyUser = proxyUser;
+        ProxyRcatZone = proxyRcatZone;
+        ClientUser = clientUser;
+        ClientRcatZone = clientRcatZone;
+        RelVersion = relVersion;
+        ApiVersion = apiVersion;
+        Option = option;
     }
 }
 
-internal class CS_NEG_PI : IRodsMessage
+[XmlType("CS_NEG_PI")]
+public class CsNegPi : Message
 {
-    public int status;
-    public string result;
+    [XmlElement("status")]
+    public int Status { get; set; }
 
-    public CS_NEG_PI() { }
+    [XmlElement("result")]
+    public string Result { get; set; }
 
-    public CS_NEG_PI(ClientServerPolicyResult policyResult)
+    public CsNegPi()
     {
-        status = policyResult is ClientServerPolicyResult.Failure ? 0 : 1;
-        result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}";
+    }
+
+    public CsNegPi(ClientServerPolicyResult policyResult)
+    {
+        Status = policyResult is ClientServerPolicyResult.Failure ? 0 : 1;
+        Result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}";
     }
 
     private static string ClientServerPolicyToString(ClientServerPolicyResult policyResult) =>
@@ -229,463 +218,709 @@ internal class CS_NEG_PI : IRodsMessage
         };
 
     public ClientServerPolicyRequest ServerPolicy =>
-        result switch
+        Result switch
         {
             "CS_NEG_REQUIRE" => ClientServerPolicyRequest.RequireSSL,
             "CS_NEG_REFUSE" => ClientServerPolicyRequest.RefuseSSL,
+            "CS_NEG_DONT_CARE" => ClientServerPolicyRequest.DontCare,
             _ => throw new ArgumentOutOfRangeException()
         };
 }
 
-internal class Version_PI : IRodsMessage
+[XmlType("Version_PI")]
+public class VersionPi : Message
 {
-    public int status;
-    public string relVersion;
-    public string apiVersion;
-    public int reconnPort;
-    public string reconnAddr;
-    public int cookie;
+    [XmlElement("status")]
+    public int Status { get; set; }
 
-    public Version_PI() { }
+    [XmlElement("relVersion")]
+    public string RelVersion { get; set; }
 
-    public Version_PI(int status, string relVersion, string apiVersion, int reconnPort, string reconnAddr, int cookie)
+    [XmlElement("apiVersion")]
+    public string ApiVersion { get; set; }
+
+    [XmlElement("reconnPort")]
+    public int ReconnPort { get; set; }
+
+    [XmlElement("reconnAddr")]
+    public string ReconnAddr { get; set; }
+
+    [XmlElement("cookie")]
+    public int Cookie { get; set; }
+
+    public VersionPi()
     {
-        this.status = status;
-        this.relVersion = relVersion;
-        this.apiVersion = apiVersion;
-        this.reconnPort = reconnPort;
-        this.reconnAddr = reconnAddr;
-        this.cookie = cookie;
+    }
+
+    public VersionPi(int status, string relVersion, string apiVersion, int reconnPort, string reconnAddr, int cookie)
+    {
+        Status = status;
+        RelVersion = relVersion;
+        ApiVersion = apiVersion;
+        ReconnPort = reconnPort;
+        ReconnAddr = reconnAddr;
+        Cookie = cookie;
     }
 }
 
-internal class authPlugReqOut_PI : IRodsMessage
+[XmlType("authPlugReqOut_PI")]
+public class AuthPlugReqOutPi : Message
 {
-    public string result_;
+    [XmlElement("result_")]
+    public string Result { get; set; }
 
-    public authPlugReqOut_PI() { }
-
-    public authPlugReqOut_PI(string result_)
+    public AuthPlugReqOutPi()
     {
-        this.result_ = result_;
     }
-}
-internal class authResponseInp_PI : IRodsMessage
-{
-    public string response;
-    public string username;
 
-    public authResponseInp_PI() { }
-
-    public authResponseInp_PI(string response, string username)
+    public AuthPlugReqOutPi(string result)
     {
-        this.response = response;
-        this.username = username;
+        Result = result;
     }
 }
 
-internal class authPlugReqInp_PI : IRodsMessage
+[XmlType("authResponseInp_PI")]
+public class AuthResponseInpPi : Message
 {
-    public string auth_scheme_;
-    public string context_;
+    [XmlElement("response")]
+    public string Response { get; set; }
 
-    public authPlugReqInp_PI() { }
+    [XmlElement("username")]
+    public string Username { get; set; }
 
-    public authPlugReqInp_PI(string auth_scheme_, string context_)
+    public AuthResponseInpPi()
     {
-        this.auth_scheme_ = auth_scheme_;
-        this.context_ = context_;
+    }
+
+    public AuthResponseInpPi(string response, string username)
+    {
+        Response = response;
+        Username = username;
     }
 }
 
-internal class MiscSvrInfo_PI : IRodsMessage
+[XmlType("authPlugReqInp_PI")]
+public class AuthPlugReqInpPi : Message
 {
-    public int status;
-    public string relVersion;
-    public string apiVersion;
-    public int reconnPort;
-    public string reconnAddr;
-    public int cookie;
+    [XmlElement("auth_scheme_")]
+    public string AuthScheme { get; set; }
 
-    public MiscSvrInfo_PI() { }
+    [XmlElement("context_")]
+    public string Context { get; set; }
 
-    public MiscSvrInfo_PI(int status, string relVersion, string apiVersion, int reconnPort, string reconnAddr, int cookie)
+    public AuthPlugReqInpPi()
     {
-        this.status = status;
-        this.relVersion = relVersion;
-        this.apiVersion = apiVersion;
-        this.reconnPort = reconnPort;
-        this.reconnAddr = reconnAddr;
-        this.cookie = cookie;
+    }
+
+    public AuthPlugReqInpPi(string authScheme, string context)
+    {
+        AuthScheme = authScheme;
+        Context = context;
     }
 }
 
-internal class authRequestOut_PI : IRodsMessage
+[XmlType("MiscSvrInfo_PI")]
+public class MiscSvrInfoPi : Message
 {
-    public string challenge;
+    [XmlElement("status")]
+    public int Status { get; set; }
 
-    public authRequestOut_PI() { }
+    [XmlElement("relVersion")]
+    public string RelVersion { get; set; }
 
-    public authRequestOut_PI(string challenge)
+    [XmlElement("apiVersion")]
+    public string ApiVersion { get; set; }
+
+    [XmlElement("reconnPort")]
+    public int ReconnPort { get; set; }
+
+    [XmlElement("reconnAddr")]
+    public string ReconnAddr { get; set; }
+
+    [XmlElement("cookie")]
+    public int Cookie { get; set; }
+
+    public MiscSvrInfoPi()
     {
-        this.challenge = challenge;
+    }
+
+    public MiscSvrInfoPi(
+        int status,
+        string relVersion,
+        string apiVersion,
+        int reconnPort,
+        string reconnAddr,
+        int cookie
+    )
+    {
+        Status = status;
+        RelVersion = relVersion;
+        ApiVersion = apiVersion;
+        ReconnPort = reconnPort;
+        ReconnAddr = reconnAddr;
+        Cookie = cookie;
     }
 }
 
-internal class sslStartInp_PI : IRodsMessage
+[XmlType("authRequestOut_PI")]
+public class AuthRequestOutPi : Message
 {
-    public string arg0;
-    public sslStartInp_PI() { }
+    [XmlElement("challenge")]
+    public string Challenge { get; set; }
 
-    public sslStartInp_PI(string arg0)
+    public AuthRequestOutPi()
     {
-        this.arg0 = arg0;
+    }
+
+    public AuthRequestOutPi(string challenge)
+    {
+        Challenge = challenge;
     }
 }
+
+[XmlType("sslStartInp_PI")]
+public class SSLStartInpPi : Message
+{
+    [XmlElement("arg0")]
+    public string Arg0 { get; set; }
+
+    public SSLStartInpPi()
+    {
+    }
+
+    public SSLStartInpPi(string arg0)
+    {
+        Arg0 = arg0;
+    }
+}
+
 #endregion
 
 #region DataObj
-internal class DataObjInp_PI : IRodsMessage
-{
-    public string objPath;
-    public int createMode;
-    public int openFlags;
-    public double offset;
-    public double dataSize;
-    public int numThreads;
-    public int oprType;
-    public KeyValPair_PI KeyValPair_PI;
 
-    public DataObjInp_PI(string objPath, int createMode, int openFlags, double offset, double dataSize, int numThreads, int oprType, KeyValPair_PI KeyValPair_PI = null)
+[XmlType("DataObjInp_PI")]
+public class DataObjInpPi : Message
+{
+    [XmlElement("objPath")]
+    public string ObjPath { get; set; }
+
+    [XmlElement("createMode")]
+    public int CreateMode { get; set; }
+
+    [XmlElement("openFlags")]
+    public int OpenFlags { get; set; }
+
+    [XmlElement("offset")]
+    public double Offset { get; set; }
+
+    [XmlElement("dataSize")]
+    public double DataSize { get; set; }
+
+    [XmlElement("numThreads")]
+    public int NumThreads { get; set; }
+
+    [XmlElement("oprType")]
+    public int OprType { get; set; }
+
+    [XmlElement("KeyValPair_PI")]
+    public KeyValPairPi KeyValPairPi { get; set; }
+
+    public DataObjInpPi(
+        string objPath,
+        int createMode,
+        int openFlags,
+        double offset,
+        double dataSize,
+        int numThreads,
+        int oprType,
+        KeyValPairPi keyValPairPi = null
+    )
     {
-        this.objPath = objPath;
-        this.createMode = createMode;
-        this.openFlags = openFlags;
-        this.offset = offset;
-        this.dataSize = dataSize;
-        this.numThreads = numThreads;
-        this.oprType = oprType;
-        this.KeyValPair_PI = KeyValPair_PI;
+        ObjPath = objPath;
+        CreateMode = createMode;
+        OpenFlags = openFlags;
+        Offset = offset;
+        DataSize = dataSize;
+        NumThreads = numThreads;
+        OprType = oprType;
+        KeyValPairPi = keyValPairPi;
     }
 }
 
-internal class DataObjCopyInp_PI : IRodsMessage
+[XmlType("DataObjCopyInp_PI")]
+public class DataObjCopyInpPi : Message
 {
-    public DataObjInp_PI src;
-    public DataObjInp_PI dest;
+    [XmlElement("src")]
+    public DataObjInpPi Src { get; set; }
 
-    public DataObjCopyInp_PI(DataObjInp_PI src = null, DataObjInp_PI dest = null)
+    [XmlElement("dest")]
+    public DataObjInpPi Dest { get; set; }
+
+    public DataObjCopyInpPi(DataObjInpPi src = null, DataObjInpPi dest = null)
     {
-        this.src = src;
-        this.dest = dest;
+        Src = src;
+        Dest = dest;
     }
 }
 
-internal class OpenedDataObjInp_PI : IRodsMessage
+[XmlType("OpenedDataObjInp_PI")]
+public class OpenedDataObjInpPi : Message
 {
-    public int l1descInx;
-    public int len;
-    public int whence;
-    public int oprType;
-    public double offset;
-    public double bytesWritten;
-    public KeyValPair_PI KeyValPair_PI;
+    [XmlElement("l1descInx")]
+    public int L1descInx { get; set; }
 
-    public OpenedDataObjInp_PI(int l1descInx, int len, int whence, int oprType, double offset, double bytesWritten, KeyValPair_PI KeyValPair_PI = null)
+    [XmlElement("len")]
+    public int Len { get; set; }
+
+    [XmlElement("whence")]
+    public int Whence { get; set; }
+
+    [XmlElement("oprType")]
+    public int OprType { get; set; }
+
+    [XmlElement("offset")]
+    public double Offset { get; set; }
+
+    [XmlElement("bytesWritten")]
+    public double BytesWritten { get; set; }
+
+    [XmlElement("KeyValPair_PI")]
+    public KeyValPairPi KeyValPairPi { get; set; }
+
+    public OpenedDataObjInpPi(
+        int l1descInx,
+        int len,
+        int whence,
+        int oprType,
+        double offset,
+        double bytesWritten,
+        KeyValPairPi keyValPairPi = null
+    )
     {
-        this.l1descInx = l1descInx;
-        this.len = len;
-        this.whence = whence;
-        this.oprType = oprType;
-        this.offset = offset;
-        this.bytesWritten = bytesWritten;
-        this.KeyValPair_PI = KeyValPair_PI;
+        L1descInx = l1descInx;
+        Len = len;
+        Whence = whence;
+        OprType = oprType;
+        Offset = offset;
+        BytesWritten = bytesWritten;
+        KeyValPairPi = keyValPairPi;
     }
 }
-internal class fileLseekOut_PI : IRodsMessage
-{
-    public int offset;
 
-    public fileLseekOut_PI() { }
+[XmlType("fileLseekOut_PI")]
+public class FileLseekOutPi : Message
+{
+    [XmlElement("offset")]
+    public int Offset { get; set; }
+
+    public FileLseekOutPi()
+    {
+    }
 }
+
 #endregion
 
 #region Collection
-internal class CollInpNew_PI : IRodsMessage
+
+[XmlType("CollInpNew_PI")]
+public class CollInpNewPi : Message
 {
-    public string collName;
-    public int flags;
-    public int oprType;
-    public KeyValPair_PI KeyValPair_PI;
+    [XmlElement("collName")]
+    public string CollName { get; set; }
 
-    public CollInpNew_PI() { }
+    [XmlElement("flags")]
+    public int Flags { get; set; }
 
-    public CollInpNew_PI(string collName, int flags, int oprType, KeyValPair_PI KeyValPair_PI = null)
+    [XmlElement("oprType")]
+    public int OprType { get; set; }
+
+    [XmlElement("KeyValPair_PI")]
+    public KeyValPairPi KeyValPairPi { get; set; }
+
+    public CollInpNewPi()
     {
-        this.collName = collName;
-        this.flags = flags;
-        this.oprType = oprType;
-        this.KeyValPair_PI = KeyValPair_PI;
+    }
+
+    public CollInpNewPi(string collName, int flags, int oprType, KeyValPairPi keyValPairPi = null)
+    {
+        CollName = collName;
+        Flags = flags;
+        OprType = oprType;
+        KeyValPairPi = keyValPairPi;
     }
 }
 
-internal class CollOprStat_PI : IRodsMessage
+[XmlType("CollOprStat_PI")]
+public class CollOprStatPi : Message
 {
-    public int filesCnt;
-    public int totalFileCnt;
-    public double bytesWritten;
-    public string lastObjPath;
+    [XmlElement("filesCnt")]
+    public int FilesCnt { get; set; }
 
-    public CollOprStat_PI() { }
+    [XmlElement("totalFileCnt")]
+    public int TotalFileCnt { get; set; }
 
-    public CollOprStat_PI(int filesCnt, int totalFileCnt, double bytesWritten, string lastObjPath)
+    [XmlElement("bytesWritten")]
+    public double BytesWritten { get; set; }
+
+    [XmlElement("lastObjPath")]
+    public string LastObjPath { get; set; }
+
+    public CollOprStatPi()
     {
-        this.filesCnt = filesCnt;
-        this.totalFileCnt = totalFileCnt;
-        this.bytesWritten = bytesWritten;
-        this.lastObjPath = lastObjPath;
+    }
+
+    public CollOprStatPi(int filesCnt, int totalFileCnt, double bytesWritten, string lastObjPath)
+    {
+        FilesCnt = filesCnt;
+        TotalFileCnt = totalFileCnt;
+        BytesWritten = bytesWritten;
+        LastObjPath = lastObjPath;
     }
 }
+
 #endregion
 
 #region Query
-internal class GenQueryInp_PI : IRodsMessage
-{
-    public int maxRows;
-    public int continueInx;
-    public int partialStartIndex;
-    public int options;
-    public KeyValPair_PI KeyValPair_PI;
-    public InxIvalPair_PI InxIvalPair_PI;
-    public InxValPair_PI InxValPair_PI;
 
-    public GenQueryInp_PI(int maxRows, int continueInx, int partialStartIndex, int options, KeyValPair_PI KeyValPair_PI, InxIvalPair_PI InxIvalPair_PI, InxValPair_PI InxValPair_PI)
+[XmlType("GenQueryInp_PI")]
+public class GenQueryInpPi : Message
+{
+    [XmlElement("maxRows")]
+    public int MaxRows { get; set; }
+
+    [XmlElement("continueInx")]
+    public int ContinueInx { get; set; }
+
+    [XmlElement("partialStartIndex")]
+    public int PartialStartIndex { get; set; }
+
+    [XmlElement("options")]
+    public int Options { get; set; }
+
+    [XmlElement("KeyValPair_PI")]
+    public KeyValPairPi KeyValPairPi { get; set; }
+
+    [XmlElement("InxIvalPair_PI")]
+    public InxIvalPairPi InxIvalPairPi { get; set; }
+
+    [XmlElement("InxValPair_PI")]
+    public InxValPairPi InxValPairPi { get; set; }
+
+    public GenQueryInpPi(
+        int maxRows,
+        int continueInx,
+        int partialStartIndex,
+        int options,
+        KeyValPairPi keyValPairPi,
+        InxIvalPairPi inxIvalPairPi,
+        InxValPairPi inxValPairPi
+    )
     {
-        this.maxRows = maxRows;
-        this.continueInx = continueInx;
-        this.partialStartIndex = partialStartIndex;
-        this.options = options;
-        this.KeyValPair_PI = KeyValPair_PI;
-        this.InxIvalPair_PI = InxIvalPair_PI;
-        this.InxValPair_PI = InxValPair_PI;
+        MaxRows = maxRows;
+        ContinueInx = continueInx;
+        PartialStartIndex = partialStartIndex;
+        Options = options;
+        KeyValPairPi = keyValPairPi;
+        InxIvalPairPi = inxIvalPairPi;
+        InxValPairPi = inxValPairPi;
     }
 }
 
-internal class GenQueryOut_PI : IRodsMessage
+[XmlType("GenQueryOut_PI")]
+public class GenQueryOutPi : Message
 {
-    public int rowCnt;
-    public int attriCnt;
-    public int continueInx;
-    public int totalRowCount;
-    public SqlResult_PI[] SqlResult_PI;
+    [XmlElement("rowCnt")]
+    public int RowCnt { get; set; }
 
-    public GenQueryOut_PI() { }
+    [XmlElement("attriCnt")]
+    public int AttriCnt { get; set; }
 
-    public GenQueryOut_PI(int rowCnt, int attriCnt, int continueInx, int totalRowCount, SqlResult_PI[] sqlResult_PI)
+    [XmlElement("continueInx")]
+    public int ContinueInx { get; set; }
+
+    [XmlElement("totalRowCount")]
+    public int TotalRowCount { get; set; }
+
+    [XmlElement("SqlResult_PI")]
+    public SqlResultPi[] SqlResultPi { get; set; }
+
+    public GenQueryOutPi()
     {
-        this.rowCnt = rowCnt;
-        this.attriCnt = attriCnt;
-        this.continueInx = continueInx;
-        this.totalRowCount = totalRowCount;
-        SqlResult_PI = sqlResult_PI;
     }
 
-    internal object Parse(Type type, IrodsSession session, Path home, Path path, Options.FileMode mode = Options.FileMode.ReadWrite, bool truncate = false)
+    public GenQueryOutPi(int rowCnt, int attriCnt, int continueInx, int totalRowCount, SqlResultPi[] sqlResultPi)
+    {
+        RowCnt = rowCnt;
+        AttriCnt = attriCnt;
+        ContinueInx = continueInx;
+        TotalRowCount = totalRowCount;
+        SqlResultPi = sqlResultPi;
+    }
+
+    public object Parse(
+        Type type,
+        IrodsSession session,
+        Path home,
+        Path path,
+        Options.FileMode mode = Options.FileMode.ReadWrite,
+        bool truncate = false
+    )
     {
         if (type == typeof(Collection))
         {
-            Collection[] collections = new Collection[rowCnt];
+            Collection[] collections = new Collection[RowCnt];
             const int collectionNameColumn = 1, collectionIdColumn = 0;
 
-            for (int i = 0; i < rowCnt; i++)
+            for (int i = 0; i < RowCnt; i++)
             {
-                Collection collection = new (new Path(SqlResult_PI[collectionNameColumn].value[i].Replace(home.ToString(), "")), int.Parse(SqlResult_PI[collectionIdColumn].value[i]), session.Collections);
+                Collection collection = new (
+                    new Path(SqlResultPi[collectionNameColumn].Value[i].Replace(home.ToString(), "")),
+                    int.Parse(SqlResultPi[collectionIdColumn].Value[i]),
+                    session.Collections
+                );
                 collections[i] = collection;
             }
+
             return collections;
         }
+
         if (type == typeof(DataObj))
         {
             List<DataObj> objects = new ();
-            const int ObjNameColumn = 2;
+            const int objNameColumn = 2;
 
             HashSet<string> names = new ();
 
-            for (int i = 0; i < rowCnt; i++)
+            for (int i = 0; i < RowCnt; i++)
             {
-                string name = SqlResult_PI[ObjNameColumn].value[i];
+                string name = SqlResultPi[objNameColumn].Value[i];
                 if (names.Add(name))
                 {
                     DataObj dataObj = session.DataObjects.Open(path + name, mode, truncate);
                     objects.Add(dataObj);
                 }
             }
+
             return objects.ToArray();
         }
+
         if (type == typeof(Meta))
         {
-            Meta[] objects = new Meta[rowCnt];
+            Meta[] objects = new Meta[RowCnt];
             const int metaNameColumn = 0, metaKeywordColumn = 1, metaUnitsColumn = 2;
 
-            for (int i = 0; i < rowCnt; i++)
+            for (int i = 0; i < RowCnt; i++)
             {
-                string unitValue = SqlResult_PI[metaUnitsColumn].value[i];
+                string unitValue = SqlResultPi[metaUnitsColumn].Value[i];
                 int? units = unitValue == "" ? null : (int?)int.Parse(unitValue);
-                Meta meta = new (SqlResult_PI[metaNameColumn].value[i], SqlResult_PI[metaKeywordColumn].value[i], units);
+                Meta meta = new (SqlResultPi[metaNameColumn].Value[i], SqlResultPi[metaKeywordColumn].Value[i], units);
                 objects[i] = meta;
             }
+
             return objects;
         }
+
         throw new Exception("Unknown Type");
     }
 }
 
-internal class SqlResult_PI : IRodsMessage
+[XmlType("SqlResult_PI")]
+public class SqlResultPi : Message
 {
-    public int attriInx;
-    public int reslen;
-    public string[] value;
+    [XmlElement("attriInx")]
+    public int AttriInx { get; set; }
 
-    public SqlResult_PI() { }
+    [XmlElement("reslen")]
+    public int Reslen { get; set; }
 
-    public SqlResult_PI(int attriInx, int reslen, string[] value)
+    [XmlElement("value")]
+    public string[] Value { get; set; }
+
+    public SqlResultPi()
     {
-        this.attriInx = attriInx;
-        this.reslen = reslen;
-        this.value = value;
+    }
+
+    public SqlResultPi(int attriInx, int reslen, string[] value)
+    {
+        AttriInx = attriInx;
+        Reslen = reslen;
+        Value = value;
     }
 }
+
 #endregion
 
 #region Meta
-internal class ModAVUMetadataInp_PI : IRodsMessage
-{
-    public string arg0, arg1, arg2, arg3, arg4, arg5;
-    public string? arg6, arg7, arg8, arg9;
 
-    public ModAVUMetadataInp_PI(string mode, string type, string path, string name, string value, int units)
+[XmlType("ModAVUMetadataInp_PI")]
+public class ModAvuMetadataInpPi : Message
+{
+    public string Arg0, Arg1, Arg2, Arg3, Arg4, Arg5;
+    public string? Arg6, Arg7, Arg8, Arg9;
+
+    public ModAvuMetadataInpPi(string mode, string type, string path, string name, string value, int units)
     {
-        arg0 = mode;
-        arg1 = type;
-        arg2 = path;
-        arg3 = name;
-        arg4 = value;
-        arg5 = units == -1 ? "" : units.ToString();
-        arg6 = null;
-        arg7 = null;
-        arg8 = null;
-        arg9 = null;
+        Arg0 = mode;
+        Arg1 = type;
+        Arg2 = path;
+        Arg3 = name;
+        Arg4 = value;
+        Arg5 = units == -1 ? "" : units.ToString();
+        Arg6 = null;
+        Arg7 = null;
+        Arg8 = null;
+        Arg9 = null;
     }
 }
+
 #endregion
 
 #region ValPairs
-internal class KeyValPair_PI : IRodsMessage
+
+[XmlType("KeyValPair_PI")]
+public class KeyValPairPi : Message
 {
-    public int ssLen;
-    public string[]? keyWord;
-    public string[]? svalue;
+    [XmlElement("ssLen")]
+    public int SsLen { get; set; }
 
-    public KeyValPair_PI() { }
+    [XmlElement("keyWord")]
+    public string[]? KeyWord { get; set; }
 
-    public KeyValPair_PI(int ssLen, string[]? keyWord, string[]? svalue)
+    [XmlElement("svalue")]
+    public string[]? Svalue { get; set; }
+
+    public KeyValPairPi()
     {
-        this.ssLen = ssLen;
-        this.keyWord = keyWord;
-        this.svalue = svalue;
+    }
+
+    public KeyValPairPi(int ssLen, string[]? keyWord, string[]? svalue)
+    {
+        SsLen = ssLen;
+        KeyWord = keyWord;
+        Svalue = svalue;
+    }
+}
+
+[XmlType("InxIvalPair_PI")]
+public class InxIvalPairPi : Message
+{
+    [XmlElement("iiLen")]
+    public int IiLen { get; set; }
+
+    [XmlElement("inx")]
+    public int[]? Inx { get; set; }
+
+    [XmlElement("ivalue")]
+    public int[]? Ivalue { get; set; }
+
+    public InxIvalPairPi(int iiLen, int[]? inx, int[]? ivalue)
+    {
+        IiLen = iiLen;
+        Inx = inx;
+        Ivalue = ivalue;
     }
 
     public override string ToString()
     {
         StringBuilder sb = new ();
         sb.AppendLine($"<{GetType().Name}>");
-        sb.AppendLine($"<ssLen>{ssLen}</ssLen>\n");
-        if (keyWord != null) foreach (string keyword in keyWord) sb.AppendLine($"<keyWord>{keyword}</keyWord>");
-        if (svalue != null) foreach (string value in svalue) sb.AppendLine($"<svalue>{value}</svalue>");
+        sb.AppendLine($"<iiLen>{IiLen}</iiLen>");
+        if (Inx != null)
+            foreach (int inx in Inx)
+                sb.AppendLine($"<inx>{inx}</inx>");
+        if (Ivalue != null)
+            foreach (int ivalue in Ivalue)
+                sb.AppendLine($"<ivalue>{ivalue}</ivalue>");
         sb.Append($"</{GetType().Name}>");
         return sb.ToString();
     }
 }
 
-internal class InxIvalPair_PI : IRodsMessage
+[XmlType("InxValPair_PI")]
+public class InxValPairPi : Message
 {
-    public int iiLen;
-    public int[]? inx;
-    public int[]? ivalue;
+    [XmlElement("isLen")]
+    public int IsLen { get; set; }
 
-    public InxIvalPair_PI(int iiLen, int[]? inx, int[]? ivalue)
+    [XmlElement("inx")]
+    public int[]? Inx { get; set; }
+
+    [XmlElement("svalue")]
+    public string[]? Svalue { get; set; }
+
+    public InxValPairPi()
     {
-        this.iiLen = iiLen;
-        this.inx = inx;
-        this.ivalue = ivalue;
     }
 
-    public override string ToString()
+    public InxValPairPi(int isLen, int[]? inx, string[]? svalue)
     {
-        StringBuilder sb = new ();
-        sb.AppendLine($"<{GetType().Name}>");
-        sb.AppendLine($"<iiLen>{iiLen}</iiLen>");
-        if (inx != null) foreach (int inx in inx) sb.AppendLine( $"<inx>{inx}</inx>");
-        if (ivalue != null) foreach (int ivalue in ivalue) sb.AppendLine($"<ivalue>{ivalue}</ivalue>");
-        sb.Append( $"</{GetType().Name}>");
-        return sb.ToString();
+        IsLen = isLen;
+        Inx = inx;
+        Svalue = svalue;
     }
 }
 
-internal class InxValPair_PI : IRodsMessage
-{
-    public int isLen;
-    public int[]? inx;
-    public string[]? svalue;
-
-    public InxValPair_PI(int isLen, int[]? inx, string[]? svalue)
-    {
-        this.isLen = isLen;
-        this.inx = inx;
-        this.svalue = svalue;
-    }
-
-    public override string ToString()
-    {
-        StringBuilder sb = new ();
-        sb.AppendLine($"<{GetType().Name}>");
-        sb.AppendLine($"<isLen>{isLen}</isLen>");
-        if (inx != null) foreach (int inx in inx) sb.AppendLine($"<inx>{inx}</inx>");
-        if (svalue != null) foreach (string svalue in svalue) sb.AppendLine($"<svalue>{svalue}</svalue>");
-        sb.Append($"</{GetType().Name}>");
-        return sb.ToString();
-    }
-}
 #endregion
 
 #region Unused
-internal class SpecColl_PI : IRodsMessage
-{
-    public int collClass;
-    public int type;
-    public string collection;
-    public string objPath;
-    public string resource;
-    public string rescHier;
-    public string phyPath;
-    public string cacheDir;
-    public int cacheDirty;
-    public int replNum;
 
-    public SpecColl_PI(int collClass, int type, string collection, string objPath, string resource, string rescHier, string phyPath, string cacheDir, int cacheDirty, int replNum)
+[XmlType("SpecColl_PI")]
+public class SpecCollPi : Message
+{
+    [XmlElement("collClass")]
+    public int CollClass { get; set; }
+
+    [XmlElement("type")]
+    public int Type { get; set; }
+
+    [XmlElement("collection")]
+    public string Collection { get; set; }
+
+    [XmlElement("objPath")]
+    public string ObjPath { get; set; }
+
+    [XmlElement("resource")]
+    public string Resource { get; set; }
+
+    [XmlElement("rescHier")]
+    public string RescHier { get; set; }
+
+    [XmlElement("phyPath")]
+    public string PhyPath { get; set; }
+
+    [XmlElement("cacheDir")]
+    public string CacheDir { get; set; }
+
+    [XmlElement("cacheDirty")]
+    public int CacheDirty { get; set; }
+
+    [XmlElement("replNum")]
+    public int ReplNum { get; set; }
+
+    public SpecCollPi(
+        int collClass,
+        int type,
+        string collection,
+        string objPath,
+        string resource,
+        string rescHier,
+        string phyPath,
+        string cacheDir,
+        int cacheDirty,
+        int replNum
+    )
     {
-        this.collClass = collClass;
-        this.type = type;
-        this.collection = collection;
-        this.objPath = objPath;
-        this.resource = resource;
-        this.rescHier = rescHier;
-        this.phyPath = phyPath;
-        this.cacheDir = cacheDir;
-        this.cacheDirty = cacheDirty;
-        this.replNum = replNum;
+        CollClass = collClass;
+        Type = type;
+        Collection = collection;
+        ObjPath = objPath;
+        Resource = resource;
+        RescHier = rescHier;
+        PhyPath = phyPath;
+        CacheDir = cacheDir;
+        CacheDirty = cacheDirty;
+        ReplNum = replNum;
     }
 }
-
 
 #endregion

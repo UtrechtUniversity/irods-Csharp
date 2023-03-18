@@ -62,7 +62,7 @@ internal class Account
     /// Creates startup pack used to establish connection with server
     /// </summary>
     /// <returns>StartupPack_PI Irods Message</returns>
-    public StartupPack_PI MakeStartupPack(string option = "") => new (Options.iRODSProt_t.XML_PROT, 0, 0, _userName, _zoneName, _userName, _zoneName, "rods4.2.6", "d", option);
+    public StartupPackPi MakeStartupPack(string option = "") => new (Options.iRODSProt_t.XML_PROT, 0, 0, _userName, _zoneName, _userName, _zoneName, "rods4.2.6", "d", option);
 
     /// <summary>
     /// Generates authentication response to secure connection with server
@@ -70,7 +70,7 @@ internal class Account
     /// <param name="password">User password</param>
     /// <param name="challenge">Auth challenge</param>
     /// <returns></returns>
-    public authResponseInp_PI GenerateAuthResponse(string password, string challenge)
+    public AuthResponseInpPi GenerateAuthResponse(string password, string challenge)
     {
         password = password.PadRight(50, '\0');
         challenge = Encoding.UTF8.GetString(Convert.FromBase64String(challenge));
@@ -78,6 +78,6 @@ internal class Account
         byte[] bytes = MD5.HashData(Encoding.UTF8.GetBytes(challenge + password));
         string response = Convert.ToBase64String(bytes);
 
-        return new authResponseInp_PI(response, _userName);
+        return new AuthResponseInpPi(response, _userName);
     }
 }

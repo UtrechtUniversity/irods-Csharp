@@ -25,9 +25,9 @@ public class MetaManager
     /// <param name="units">Metadata units, these are optional</param>
     public void AddMeta(ITaggable obj,  string name, string value, int units = -1)
     {
-        Packet<ModAVUMetadataInp_PI> addMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
+        Packet<ModAvuMetadataInpPi> addMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
         {
-            MsgBody = new ModAVUMetadataInp_PI("add", obj.MetaType(), _home + obj.Path(), name, value, units)
+            MsgBody = new ModAvuMetadataInpPi("add", obj.MetaType(), _home + obj.Path(), name, value, units)
         };
 
         _session.SendPacket(addMetaRequest);
@@ -45,9 +45,9 @@ public class MetaManager
     // TODO test removal of meta tags with and without units
     public void RemoveMeta(ITaggable obj, string name, string value, int units = -1)
     {
-        Packet<ModAVUMetadataInp_PI> removeMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
+        Packet<ModAvuMetadataInpPi> removeMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
         {
-            MsgBody = new ModAVUMetadataInp_PI("rm", obj.MetaType(), _home + obj.Path(), name, value, units)
+            MsgBody = new ModAvuMetadataInpPi("rm", obj.MetaType(), _home + obj.Path(), name, value, units)
         };
 
         _session.SendPacket(removeMetaRequest);

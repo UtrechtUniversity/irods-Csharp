@@ -40,10 +40,9 @@ internal class Connection : IDisposable
             ReadTimeout = 5000
         };
 
-
         if (_requestServerNegotiation == null)
         {
-            Packet<StartupPack_PI> connectionRequest = new (type: MessageType.CONNECT)
+            Packet<StartupPackPi> connectionRequest = new (type: MessageType.CONNECT)
             {
                 MsgBody = _account.MakeStartupPack()
             };
@@ -53,26 +52,33 @@ internal class Connection : IDisposable
         {
             ClientServerPolicyRequest clientPolicy = _requestServerNegotiation.ClientServerPolicy;
 
-            Packet<StartupPack_PI> connectionRequest = new (type: MessageType.CONNECT)
+            Packet<StartupPackPi> connectionRequest = new (type: MessageType.CONNECT)
             {
                 MsgBody = _account.MakeStartupPack("request_server_negotiation")
             };
             SendPacket(connectionRequest);
 
-            ClientServerPolicyRequest serverPolicy = ReceivePacket<CS_NEG_PI>().MsgBody!.ServerPolicy;
+            ClientServerPolicyRequest serverPolicy = ReceivePacket<CsNegPi>().MsgBody!.ServerPolicy;
 
             ClientServerPolicyResult agreedPolicy = (clientPolicy, serverPolicy) switch
             {
-                (ClientServerPolicyRequest.RequireSSL, ClientServerPolicyRequest.RequireSSL) => ClientServerPolicyResult
+                (ClientServerPolicyRequest.RequireSSL, ClientServerPolicyRequest.RequireSSL)
+                    or (ClientServerPolicyRequest.DontCare, ClientServerPolicyRequest.RequireSSL)
+                    or (ClientServerPolicyRequest.RequireSSL, ClientServerPolicyRequest.DontCare) =>
+                    ClientServerPolicyResult.UseSSL,
+                (ClientServerPolicyRequest.RefuseSSL, ClientServerPolicyRequest.RefuseSSL)
+                    or (ClientServerPolicyRequest.DontCare, ClientServerPolicyRequest.RefuseSSL)
+                    or (ClientServerPolicyRequest.RefuseSSL, ClientServerPolicyRequest.DontCare) =>
+                    ClientServerPolicyResult.UseTCP,
+                // Default to ssl if both parties do not care
+                (ClientServerPolicyRequest.DontCare, ClientServerPolicyRequest.DontCare) => ClientServerPolicyResult
                     .UseSSL,
-                (ClientServerPolicyRequest.RefuseSSL, ClientServerPolicyRequest.RefuseSSL) => ClientServerPolicyResult
-                    .UseTCP,
                 _ => ClientServerPolicyResult.Failure
             };
 
-            Packet<CS_NEG_PI> negotationRequest = new (type: MessageType.CLIENT_SERVER_NEGOTIATION)
+            Packet<CsNegPi> negotationRequest = new (type: MessageType.CLIENT_SERVER_NEGOTIATION)
             {
-                MsgBody = new CS_NEG_PI(agreedPolicy)
+                MsgBody = new CsNegPi(agreedPolicy)
             };
             SendPacket(negotationRequest);
 
@@ -85,7 +91,7 @@ internal class Connection : IDisposable
             }
         }
 
-        ReceivePacket<Version_PI>();
+        ReceivePacket<VersionPi>();
     }
 
     /// <summary>
@@ -104,9 +110,9 @@ internal class Connection : IDisposable
     /// </summary>
     public void Secure()
     {
-        Packet<sslStartInp_PI> sslRequest = new (ApiNumberData.SSL_START_AN)
+        Packet<SSLStartInpPi> sslRequest = new (ApiNumberData.SSL_START_AN)
         {
-            MsgBody = new sslStartInp_PI("")
+            MsgBody = new SSLStartInpPi("")
         };
         SendPacket(sslRequest);
 
@@ -127,11 +133,11 @@ internal class Connection : IDisposable
         Packet<None> authRequest = new (ApiNumberData.AUTH_REQUEST_AN);
         SendPacket(authRequest);
 
-        Packet<authRequestOut_PI> authRequestReply = ReceivePacket<authRequestOut_PI>();
+        Packet<AuthRequestOutPi> authRequestReply = ReceivePacket<AuthRequestOutPi>();
 
-        Packet<authResponseInp_PI> authResponse = new (ApiNumberData.AUTH_RESPONSE_AN)
+        Packet<AuthResponseInpPi> authResponse = new (ApiNumberData.AUTH_RESPONSE_AN)
         {
-            MsgBody = _account.GenerateAuthResponse(password, authRequestReply.MsgBody.challenge)
+            MsgBody = _account.GenerateAuthResponse(password, authRequestReply.MsgBody.Challenge)
         };
         SendPacket(authResponse);
 
@@ -147,16 +153,16 @@ internal class Connection : IDisposable
     {
         Secure();
 
-        Packet<authPlugReqInp_PI> msgHeaderStructClient = new (ApiNumberData.AUTH_PLUG_REQ_AN)
+        Packet<AuthPlugReqInpPi> msgHeaderStructClient = new (ApiNumberData.AUTH_PLUG_REQ_AN)
         {
-            MsgBody = new authPlugReqInp_PI("PAM", _account.PamContext(password))
+            MsgBody = new AuthPlugReqInpPi("PAM", _account.PamContext(password))
         };
         SendPacket(msgHeaderStructClient);
-        msgHeaderStructClient.MsgBody.context_ = "REDACTED";
+        msgHeaderStructClient.MsgBody.Context = "REDACTED";
 
-        Packet<authPlugReqOut_PI> msgHeaderStructServer = ReceivePacket<authPlugReqOut_PI>();
+        Packet<AuthPlugReqOutPi> msgHeaderStructServer = ReceivePacket<AuthPlugReqOutPi>();
 
-        return msgHeaderStructServer.MsgBody.result_;
+        return msgHeaderStructServer.MsgBody.Result;
     }
 
     /// <summary>
@@ -164,7 +170,7 @@ internal class Connection : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <param name="packet">The packet to send to the server.</param>
-    public void SendPacket<T>(Packet<T> packet) where T : IRodsMessage
+    public void SendPacket<T>(Packet<T> packet) where T : Message
     {
         WriteLog(ConsoleColor.DarkGray, packet);
 
@@ -173,22 +179,22 @@ internal class Connection : IDisposable
 
         if (packet.MsgBody != null)
         {
-            msgBytes = packet.MsgBody.Serialize();
-            packet.MsgHeader.msgLen = msgBytes.Length;
+            msgBytes = MessageSerializer.Serialize(packet.MsgBody);
+            packet.MsgHeader.MsgLen = msgBytes.Length;
         }
 
         if (packet.Error != null)
         {
-            errorBytes = packet.Error.Serialize();
-            packet.MsgHeader.errorLen = errorBytes.Length;
+            errorBytes = MessageSerializer.Serialize(packet.Error);
+            packet.MsgHeader.ErrorLen = errorBytes.Length;
         }
 
         if (packet.Binary != null)
         {
-            packet.MsgHeader.bsLen = packet.Binary.Length;
+            packet.MsgHeader.BsLen = packet.Binary.Length;
         }
 
-        byte[] msgHeaderClientBytes = packet.MsgHeader.Serialize();
+        byte[] msgHeaderClientBytes = MessageSerializer.Serialize(packet.MsgHeader);
         SendBytes(msgHeaderClientBytes, true);
 
         if (msgBytes != null) SendBytes(msgBytes, false);
@@ -201,17 +207,17 @@ internal class Connection : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <returns>The packet received from the server.</returns>
-    public Packet<T> ReceivePacket<T>() where T : IRodsMessage, new()
+    public Packet<T> ReceivePacket<T>() where T : Message, new()
     {
-        Packet<T> packet = new() { MsgHeader = ReceiveMessage<MsgHeader_PI>() };
-        if (packet.MsgHeader.msgLen > 0) packet.MsgBody = ReceiveMessage<T>(packet.MsgHeader.msgLen);
-        if (packet.MsgHeader.errorLen > 0) packet.Error = ReceiveMessage<RError_PI>(packet.MsgHeader.errorLen);
-        if (packet.MsgHeader.bsLen > 0) packet.Binary = ReceiveBytes(packet.MsgHeader.bsLen);
+        Packet<T> packet = new() { MsgHeader = ReceiveMessage<MsgHeaderPi>() };
+        if (packet.MsgHeader.MsgLen > 0) packet.MsgBody = ReceiveMessage<T>(packet.MsgHeader.MsgLen);
+        if (packet.MsgHeader.ErrorLen > 0) packet.Error = ReceiveMessage<RErrorPi>(packet.MsgHeader.ErrorLen);
+        if (packet.MsgHeader.BsLen > 0) packet.Binary = ReceiveBytes(packet.MsgHeader.BsLen);
         WriteLog(ConsoleColor.Gray, packet);
-        if (packet.MsgHeader.intInfo >= 0) return packet;
+        if (packet.MsgHeader.IntInfo >= 0) return packet;
 
         Exception e =
-            new (Table.ApiErrorData[packet.MsgHeader.intInfo])
+            new (Table.ApiErrorData[packet.MsgHeader.IntInfo])
             {
                 Data = { ["error"] = packet.Error, ["body"] = packet.MsgBody }
             };
@@ -223,7 +229,7 @@ internal class Connection : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <returns>The IRodsMessage received from the server.</returns>
-    private T ReceiveMessage<T>() where T : IRodsMessage, new() => IRodsMessage.Deserialize<T>(ReceiveBytes(BitConverter.ToInt32(ReceiveBytes(4).Reverse().ToArray(), 0)));
+    private T ReceiveMessage<T>() where T : Message, new() => MessageSerializer.Deserialize<T>(ReceiveBytes(BitConverter.ToInt32(ReceiveBytes(4).Reverse().ToArray(), 0)));
 
     /// <summary>
     /// Receives an IRodsMessage with the specified byte length from the server.
@@ -231,7 +237,7 @@ internal class Connection : IDisposable
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <param name="length">The amount of bytes to receive from the server.</param>
     /// <returns>The IRodsMessage received from the server.</returns>
-    private T ReceiveMessage<T>(int length) where T : IRodsMessage, new() => IRodsMessage.Deserialize<T>(ReceiveBytes(length));
+    private T ReceiveMessage<T>(int length) where T : Message, new() => MessageSerializer.Deserialize<T>(ReceiveBytes(length));
 
     /// <summary>
     /// Sends the specified bytes to the server with an optional 4 byte length header.

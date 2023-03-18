@@ -1,6 +1,6 @@
 ﻿namespace irods_Csharp;
 
-internal class Path
+public class Path
 {
     private readonly string _path;
 

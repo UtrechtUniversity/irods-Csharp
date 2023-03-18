@@ -80,7 +80,7 @@ public class IrodsSession : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <param name="packet">The packet to send to the server.</param>
-    internal void SendPacket<T>(Packet<T> packet) where T : IRodsMessage
+    internal void SendPacket<T>(Packet<T> packet) where T : Message
     {
         _connection.SendPacket(packet);
     }
@@ -90,7 +90,7 @@ public class IrodsSession : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <returns>The packet received from the server.</returns>
-    internal Packet<T> ReceivePacket<T>() where T : IRodsMessage, new()
+    internal Packet<T> ReceivePacket<T>() where T : Message, new()
     {
         return _connection.ReceivePacket<T>();
     }
@@ -106,17 +106,17 @@ public class IrodsSession : IDisposable
         int type = isCollection ? 12 : 11;
         Path home = new (_account.Home);
 
-        Packet<DataObjCopyInp_PI> renameRequest = new (ApiNumberData.DATA_OBJ_RENAME_AN)
+        Packet<DataObjCopyInpPi> renameRequest = new (ApiNumberData.DATA_OBJ_RENAME_AN)
         {
-            MsgBody = new DataObjCopyInp_PI()
+            MsgBody = new DataObjCopyInpPi()
             {
-                src = new DataObjInp_PI(home + source, 0, 0, 0, 0, 0, type)
+                Src = new DataObjInpPi(home + source, 0, 0, 0, 0, 0, type)
                 {
-                    KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                    KeyValPairPi = new KeyValPairPi(0, null, null)
                 },
-                dest = new DataObjInp_PI(home + target, 0, 0, 0, 0, 0, type)
+                Dest = new DataObjInpPi(home + target, 0, 0, 0, 0, 0, type)
                 {
-                    KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                    KeyValPairPi = new KeyValPairPi(0, null, null)
                 },
             }
         };

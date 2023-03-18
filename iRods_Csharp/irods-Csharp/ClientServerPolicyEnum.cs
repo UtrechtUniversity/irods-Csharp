@@ -10,7 +10,12 @@ public enum ClientServerPolicyRequest
     /// <summary>
     /// Require tcp without SSL.
     /// </summary>
-    RefuseSSL
+    RefuseSSL,
+
+    /// <summary>
+    /// Either option is fine.
+    /// </summary>
+    DontCare
 }
 
 

@@ -47,10 +47,10 @@ public class CollectionManager
     /// <param name="path">Path where collection should be created, including name</param>
     public void Create(string path)
     {
-        KeyValPair_PI mkdirRequestMsgPair = new (0, new string[0], new string[0]);
-        Packet<CollInpNew_PI> mkdirRequest = new (ApiNumberData.COLL_CREATE_AN)
+        KeyValPairPi mkdirRequestMsgPair = new (0, new string[0], new string[0]);
+        Packet<CollInpNewPi> mkdirRequest = new (ApiNumberData.COLL_CREATE_AN)
         {
-            MsgBody = new CollInpNew_PI(_home + path, 0, 0, mkdirRequestMsgPair)
+            MsgBody = new CollInpNewPi(_home + path, 0, 0, mkdirRequestMsgPair)
         };
         Session.SendPacket(mkdirRequest);
 
@@ -64,15 +64,15 @@ public class CollectionManager
     /// <param name="recursive">Delete items of collection if they exist</param>
     public void Remove(string path, bool recursive = true)
     {
-        Packet<CollInpNew_PI> rmdirRequest = new (ApiNumberData.RM_COLL_AN)
+        Packet<CollInpNewPi> rmdirRequest = new (ApiNumberData.RM_COLL_AN)
         {
-            MsgBody = new CollInpNew_PI(_home + path, 0, 0)
+            MsgBody = new CollInpNewPi(_home + path, 0, 0)
             {
-                KeyValPair_PI = recursive ? new KeyValPair_PI(1, new[] { "recursiveOpr" }, new[] { "" }) : new KeyValPair_PI(0, new string[0], new string[0])
+                KeyValPairPi = recursive ? new KeyValPairPi(1, new[] { "recursiveOpr" }, new[] { "" }) : new KeyValPairPi(0, new string[0], new string[0])
             }
         };
         Session.SendPacket(rmdirRequest);
 
-        Session.ReceivePacket<CollOprStat_PI>();
+        Session.ReceivePacket<CollOprStatPi>();
     }
 }

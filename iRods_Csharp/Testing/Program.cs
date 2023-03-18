@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using irods_Csharp;
+using Path = System.IO.Path;
 
 namespace Testing
 {

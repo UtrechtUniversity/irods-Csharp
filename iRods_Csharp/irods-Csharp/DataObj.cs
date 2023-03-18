@@ -35,11 +35,11 @@ public class DataObj : ITaggable, IDisposable
     /// </summary>
     public void Dispose()
     {
-        Packet<OpenedDataObjInp_PI> descRequest = new (ApiNumberData.DATA_OBJ_CLOSE_AN)
+        Packet<OpenedDataObjInpPi> descRequest = new (ApiNumberData.DATA_OBJ_CLOSE_AN)
         {
-            MsgBody = new OpenedDataObjInp_PI(Descriptor, 0, 0, 0, 0, 0)
+            MsgBody = new OpenedDataObjInpPi(Descriptor, 0, 0, 0, 0, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
         _manager.Session.SendPacket(descRequest);
@@ -53,11 +53,11 @@ public class DataObj : ITaggable, IDisposable
     /// <param name="file">Data to write</param>
     public void Write(byte[] file)
     {
-        Packet<OpenedDataObjInp_PI> writeRequest = new (ApiNumberData.DATA_OBJ_WRITE_AN)
+        Packet<OpenedDataObjInpPi> writeRequest = new (ApiNumberData.DATA_OBJ_WRITE_AN)
         {
-            MsgBody = new OpenedDataObjInp_PI(Descriptor, file.Length, 0, 0, 0, 0)
+            MsgBody = new OpenedDataObjInpPi(Descriptor, file.Length, 0, 0, 0, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             },
             Binary = file
         };
@@ -88,18 +88,18 @@ public class DataObj : ITaggable, IDisposable
     /// <returns>Pointer to place in file</returns>
     public int Seek(int offset, Options.SeekMode seekMode)
     {
-        Packet<OpenedDataObjInp_PI> readRequest = new (ApiNumberData.DATA_OBJ_LSEEK_AN)
+        Packet<OpenedDataObjInpPi> readRequest = new (ApiNumberData.DATA_OBJ_LSEEK_AN)
         {
-            MsgBody = new OpenedDataObjInp_PI(Descriptor, 0, (int)seekMode, 0, offset, 0)
+            MsgBody = new OpenedDataObjInpPi(Descriptor, 0, (int)seekMode, 0, offset, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
         _manager.Session.SendPacket(readRequest);
 
-        Packet<fileLseekOut_PI> readReply = _manager.Session.ReceivePacket<fileLseekOut_PI>();
+        Packet<FileLseekOutPi> readReply = _manager.Session.ReceivePacket<FileLseekOutPi>();
 
-        return readReply.MsgBody.offset;
+        return readReply.MsgBody.Offset;
     }
 
     /// <summary>
@@ -111,11 +111,11 @@ public class DataObj : ITaggable, IDisposable
     {
         if (length == -1) length = Left();
 
-        Packet<OpenedDataObjInp_PI> readRequest = new (ApiNumberData.DATA_OBJ_READ_AN)
+        Packet<OpenedDataObjInpPi> readRequest = new (ApiNumberData.DATA_OBJ_READ_AN)
         {
-            MsgBody = new OpenedDataObjInp_PI(Descriptor, length, 0, 0, 0, 0)
+            MsgBody = new OpenedDataObjInpPi(Descriptor, length, 0, 0, 0, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
         _manager.Session.SendPacket(readRequest);

@@ -2,7 +2,7 @@
 
 public class Options
 {
-    internal enum iRODSProt_t
+    public enum iRODSProt_t
     {
         NATIVE_PROT,
         XML_PROT

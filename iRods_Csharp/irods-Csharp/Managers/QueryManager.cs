@@ -31,20 +31,20 @@ public class QueryManager
     /// <returns>Array of objects of the supplied type</returns>
     internal object Query(string path, Column[] select, Condition[] conditions, Type type, int maxRows = 500)
     {
-        InxIvalPair_PI selects = new (select.Length, select.Select(x => x.Id).ToArray(), Enumerable.Repeat(1, select.Length).ToArray());
-        InxValPair_PI cConditions = new (conditions.Length, conditions.Select(x => x.Column.Id).ToArray(), conditions.Select(x => x.ToString()).ToArray());
+        InxIvalPairPi selects = new (select.Length, select.Select(x => x.Id).ToArray(), Enumerable.Repeat(1, select.Length).ToArray());
+        InxValPairPi cConditions = new (conditions.Length, conditions.Select(x => x.Column.Id).ToArray(), conditions.Select(x => x.ToString()).ToArray());
 
         //TODO Implement keyword conditions
-        KeyValPair_PI kConditions = new (0, null, null);
+        KeyValPairPi kConditions = new (0, null, null);
 
-        Packet<GenQueryInp_PI> query = new (ApiNumberData.GEN_QUERY_AN)
+        Packet<GenQueryInpPi> query = new (ApiNumberData.GEN_QUERY_AN)
         {
-            MsgBody = new GenQueryInp_PI(maxRows, 0, 0, 0, kConditions, selects, cConditions)
+            MsgBody = new GenQueryInpPi(maxRows, 0, 0, 0, kConditions, selects, cConditions)
         };
 
         _session.SendPacket(query);
 
-        Packet<GenQueryOut_PI> queryResult = _session.ReceivePacket<GenQueryOut_PI>();
+        Packet<GenQueryOutPi> queryResult = _session.ReceivePacket<GenQueryOutPi>();
 
         return queryResult.MsgBody.Parse(type, _session, _home, new Path(path));
     }

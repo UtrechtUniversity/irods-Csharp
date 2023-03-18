@@ -32,26 +32,26 @@ public class DataObjectManager
         if (truncate) flag |= 512;
         const int cmode = 0644;
 
-        Packet<DataObjInp_PI> descRequest;
-        if (create) descRequest = new Packet<DataObjInp_PI>(ApiNumberData.DATA_OBJ_CREATE_AN)
+        Packet<DataObjInpPi> descRequest;
+        if (create) descRequest = new Packet<DataObjInpPi>(ApiNumberData.DATA_OBJ_CREATE_AN)
         {
-            MsgBody = new DataObjInp_PI(_home + path, cmode, flag, 0, -1, 0, 0)
+            MsgBody = new DataObjInpPi(_home + path, cmode, flag, 0, -1, 0, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
-        else descRequest = new Packet<DataObjInp_PI>(ApiNumberData.DATA_OBJ_OPEN_AN)
+        else descRequest = new Packet<DataObjInpPi>(ApiNumberData.DATA_OBJ_OPEN_AN)
         {
-            MsgBody = new DataObjInp_PI(_home + path, 0, flag, 0, -1, 0, 0)
+            MsgBody = new DataObjInpPi(_home + path, 0, flag, 0, -1, 0, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
         Session.SendPacket(descRequest);
 
         Packet<None> descReply = Session.ReceivePacket<None>();
-        if(descReply.MsgHeader.intInfo == 0) throw new Exception("File does not exist.");
-        return new DataObj(descReply.MsgHeader.intInfo, new Path(path), this);
+        if(descReply.MsgHeader.IntInfo == 0) throw new Exception("File does not exist.");
+        return new DataObj(descReply.MsgHeader.IntInfo, new Path(path), this);
     }
 
     /// <summary>
@@ -94,11 +94,11 @@ public class DataObjectManager
     /// <param name="path">Path to parent collection of object</param>
     public void Remove(string path)
     {
-        Packet<DataObjInp_PI> removeRequest = new (ApiNumberData.DATA_OBJ_UNLINK_AN)
+        Packet<DataObjInpPi> removeRequest = new (ApiNumberData.DATA_OBJ_UNLINK_AN)
         {
-            MsgBody = new DataObjInp_PI(_home + path, 0, 0, 0, -1, 0, 0)
+            MsgBody = new DataObjInpPi(_home + path, 0, 0, 0, -1, 0, 0)
             {
-                KeyValPair_PI = new KeyValPair_PI(0, null, null)
+                KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
         Session.SendPacket(removeRequest);

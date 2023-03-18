@@ -79,7 +79,10 @@ public class Utility
         ConsoleColor currentColor = Console.ForegroundColor;
         Console.SetOut(writer);
         Console.ForegroundColor = color;
-        Console.WriteLine(data.ToString());
+        if (data is Message m)
+            Console.WriteLine(MessageSerializer.Stringify(m));
+        else
+            Console.WriteLine(data.ToString());
         Console.SetOut(currentWriter);
         Console.ForegroundColor = currentColor;
     }
