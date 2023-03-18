@@ -438,6 +438,11 @@ public class DataObjInpPi : Message
     [XmlElement("KeyValPair_PI")]
     public KeyValPairPi KeyValPairPi { get; set; }
 
+    public DataObjInpPi()
+    {
+
+    }
+
     public DataObjInpPi(
         string objPath,
         int createMode,
@@ -469,6 +474,10 @@ public class DataObjCopyInpPi : Message
     [XmlElement("dest")]
     public DataObjInpPi Dest { get; set; }
 
+    public DataObjCopyInpPi()
+    {
+    }
+
     public DataObjCopyInpPi(DataObjInpPi src = null, DataObjInpPi dest = null)
     {
         Src = src;
@@ -499,6 +508,11 @@ public class OpenedDataObjInpPi : Message
 
     [XmlElement("KeyValPair_PI")]
     public KeyValPairPi KeyValPairPi { get; set; }
+
+    public OpenedDataObjInpPi()
+    {
+
+    }
 
     public OpenedDataObjInpPi(
         int l1descInx,
@@ -618,6 +632,11 @@ public class GenQueryInpPi : Message
 
     [XmlElement("InxValPair_PI")]
     public InxValPairPi InxValPairPi { get; set; }
+
+    public GenQueryInpPi()
+    {
+
+    }
 
     public GenQueryInpPi(
         int maxRows,
@@ -770,6 +789,11 @@ public class ModAvuMetadataInpPi : Message
 {
     public string Arg0, Arg1, Arg2, Arg3, Arg4, Arg5;
     public string? Arg6, Arg7, Arg8, Arg9;
+
+    public ModAvuMetadataInpPi()
+    {
+
+    }
 
     public ModAvuMetadataInpPi(string mode, string type, string path, string name, string value, int units)
     {

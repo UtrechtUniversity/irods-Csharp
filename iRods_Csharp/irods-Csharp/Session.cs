@@ -80,7 +80,7 @@ public class IrodsSession : IDisposable
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
     /// <param name="packet">The packet to send to the server.</param>
-    internal void SendPacket<T>(Packet<T> packet) where T : Message
+    internal void SendPacket<T>(Packet<T> packet) where T : Message, new()
     {
         _connection.SendPacket(packet);
     }
@@ -108,7 +108,7 @@ public class IrodsSession : IDisposable
 
         Packet<DataObjCopyInpPi> renameRequest = new (ApiNumberData.DATA_OBJ_RENAME_AN)
         {
-            MsgBody = new DataObjCopyInpPi()
+            MsgBody = new DataObjCopyInpPi
             {
                 Src = new DataObjInpPi(home + source, 0, 0, 0, 0, 0, type)
                 {
