@@ -18,18 +18,25 @@ namespace Testing
             Utility.Log = Console.Out;
             Utility.Text = Console.Out;
 
+
             string accountLocation = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"..\..\..\irods_environment.json"));
             Dictionary<string, string> accountOptions = Utility.LoadJson(accountLocation);
             string passwordLocation = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"..\..\..\password.txt"));
 
-            IrodsSession testSession = new IrodsSession(accountOptions["irods_host"], int.Parse(accountOptions["irods_port"]), accountOptions["irods_home"], accountOptions["irods_user_name"], accountOptions["irods_zone_name"], AuthenticationScheme.Pam, 1, null);
+
+            ClientServerPolicyRequest clientServerPolicy = ClientServerPolicyRequest.RequireSSL;
+            ClientServerNegotiation clientServerNegotiation = new ClientServerNegotiation(clientServerPolicy, accountOptions["irods_encryption_algorithm"], Convert.ToInt32(accountOptions["irods_encryption_encryption"]), Convert.ToInt32(accountOptions["irods_encryption_salt_size"]), Convert.ToInt32(accountOptions["irods_encryption_num_hash_rounds"]));
+
+            IrodsSession testSession = new IrodsSession(accountOptions["irods_host"], int.Parse(accountOptions["irods_port"]), accountOptions["irods_home"], accountOptions["irods_user_name"], accountOptions["irods_zone_name"], AuthenticationScheme.Pam, 24, clientServerNegotiation);
+
 
             bool connected = false;
             while (!connected)
             {
                 try
                 {
-                    testSession.Start(File.ReadAllText(passwordLocation));
+                    string hashedPassword = testSession.Setup(File.ReadAllText(passwordLocation));
+                    testSession.Start(hashedPassword);
                     connected = true;
                 }
                 catch (Exception e)

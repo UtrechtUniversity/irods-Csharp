@@ -9,10 +9,4 @@
     <ProjectReference Include="..\irods-Csharp\irods-Csharp.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="iRods_Csharp">
-      <HintPath>..\..\..\..\..\..\Desktop\test\ConsoleApp1\iRods_Csharp\iRods_Csharp\iRods_Csharp\bin\Debug\netstandard2.0\iRods_Csharp.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>
