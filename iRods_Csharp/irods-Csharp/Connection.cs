@@ -126,6 +126,8 @@ internal class Connection : IDisposable
         SslStream secureServerStream = new (_serverStream, false);
         secureServerStream.AuthenticateAsClient(_account.Host);
 
+        _serverStream = secureServerStream;
+
         Packet<None> encryptionRequest = new ()
         {
             MsgHeader = new MsgHeaderPi(
@@ -144,7 +146,7 @@ internal class Connection : IDisposable
         };
         SendPacket(keyRequest);
 
-        _serverStream = secureServerStream;
+   
     }
 
     /// <summary>

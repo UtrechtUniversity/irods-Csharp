@@ -125,6 +125,11 @@ public class RErrMsgPi : Message
         Status = status;
         Msg = msg;
     }
+
+    public RErrMsgPi()
+    {
+        
+    }
 }
 
 [XmlType("None")]
@@ -218,7 +223,8 @@ public class CsNegPi : Message
     public CsNegPi(ClientServerPolicyResult policyResult)
     {
         Status = policyResult is ClientServerPolicyResult.Failure ? 0 : 1;
-        Result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}";
+       // Result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}"; //NOK
+        Result = $"cs_neg_result_kw={ClientServerPolicyToString(policyResult)};"; //OK
     }
 
     private static string ClientServerPolicyToString(ClientServerPolicyResult policyResult) =>
@@ -855,6 +861,11 @@ public class InxIvalPairPi : Message
         IiLen = iiLen;
         Inx = inx;
         Ivalue = ivalue;
+    }
+
+    public InxIvalPairPi()
+    {
+
     }
 
     public override string ToString()
