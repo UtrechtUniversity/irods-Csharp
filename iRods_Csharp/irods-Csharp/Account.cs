@@ -64,7 +64,6 @@ internal class Account
     /// </summary>
     /// <returns>StartupPack_PI Irods Message</returns>
     public StartupPackPi MakeStartupPack(string option = "") => new(Options.iRODSProt_t.XML_PROT, 0, 0, _userName, _zoneName, _userName, _zoneName, "rods4.3.0", "d", option);
-    //public StartupPackPi MakeStartupPack(string option = "") => new (Options.iRODSProt_t.XML_PROT, 0, 0, _userName, _zoneName, _userName, _zoneName, "rods4.2.6", "d", option);
 
     /// <summary>
     /// Generates authentication response to secure connection with server
