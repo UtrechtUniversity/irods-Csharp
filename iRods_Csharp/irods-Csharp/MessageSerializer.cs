@@ -11,19 +11,19 @@ namespace irods_Csharp;
 /// </summary>
 internal static class MessageSerializer
 {
-    private static readonly XmlWriterSettings _settings = new()
+    private static readonly XmlWriterSettings Settings = new()
     {
         OmitXmlDeclaration = true,
         NamespaceHandling = NamespaceHandling.Default
     };
 
-    private static readonly XmlWriterSettings _prettySettings = new()
+    private static readonly XmlWriterSettings PrettySettings = new()
     {
         OmitXmlDeclaration = true,
         Indent = true
     };
 
-    private static readonly XmlSerializerNamespaces _emptyNameSpaces = new (new[] { XmlQualifiedName.Empty });
+    private static readonly XmlSerializerNamespaces EmptyNameSpaces = new (new[] { XmlQualifiedName.Empty });
 
     /// <summary>
     /// Turns the object into a XML string.
@@ -35,9 +35,9 @@ internal static class MessageSerializer
     {
         XmlSerializer serializer = new(typeof(T));
         using StringWriter output = new();
-        using XmlWriter writer = XmlWriter.Create(output, _prettySettings);
-        serializer.Serialize(writer, message, _emptyNameSpaces);
-        return output.GetStringBuilder().ToString();
+        using XmlWriter writer = XmlWriter.Create(output, PrettySettings);
+        serializer.Serialize(writer, message, EmptyNameSpaces);
+        return output.ToString();
     }
 
     /// <summary>
@@ -64,9 +64,9 @@ internal static class MessageSerializer
     {
         XmlSerializer serializer = new(typeof(T));
         using StringWriter output = new();
-        using XmlWriter writer = XmlWriter.Create(output, _settings);
-        serializer.Serialize(writer, message, _emptyNameSpaces);
-        return Encoding.UTF8.GetBytes(output.GetStringBuilder().ToString());
+        using XmlWriter writer = XmlWriter.Create(output, Settings);
+        serializer.Serialize(writer, message, EmptyNameSpaces);
+        return Encoding.UTF8.GetBytes(output.ToString());
     }
 
     /// <summary>

@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Xml;
 using System.Xml.Serialization;
 
 // ReSharper disable EmptyConstructor
@@ -21,20 +24,24 @@ public abstract class Message
 public class Packet<T>
     where T : Message, new()
 {
+    [XmlElement("MsgHeader")]
     public MsgHeaderPi MsgHeader { get; set; }
     public byte[]? MsgBodyBytes { get; set; }
 
+    [XmlElement("MsgBody")]
     public T? MsgBody
     {
         get => MsgBodyBytes == null ? null : MessageSerializer.Deserialize<T>(MsgBodyBytes);
         set => MsgBodyBytes = value == null ? null : MessageSerializer.Serialize(value);
     }
     public byte[]? ErrorBytes { get; set; }
+    [XmlElement("Error")]
     public RErrorPi? Error
     {
         get => ErrorBytes == null ? null : MessageSerializer.Deserialize<RErrorPi>(ErrorBytes);
         set => ErrorBytes = value == null ? null : MessageSerializer.Serialize(value);
     }
+    [XmlElement("Binary")]
     public byte[]? Binary { get; set; }
 
     public Packet()
@@ -49,11 +56,14 @@ public class Packet<T>
 
     public override string ToString()
     {
-        string result = "";
-        foreach (FieldInfo field in GetType().GetFields())
-            if (field.GetValue(this) != null)
-                result += field.GetValue(this) + "\n";
-        return result;
+        XmlWriterSettings prettySettings = new () { OmitXmlDeclaration = true, Indent = true };
+        XmlSerializerNamespaces emptyNameSpaces = new (new[] { XmlQualifiedName.Empty });
+
+        XmlSerializer serializer = new (GetType());
+        using StringWriter output = new ();
+        using XmlWriter writer = XmlWriter.Create(output, prettySettings);
+        serializer.Serialize(writer, this, emptyNameSpaces);
+        return output.ToString();
     }
 }
 
@@ -119,6 +129,10 @@ public class RErrMsgPi : Message
 
     [XmlElement("msg")]
     public string Msg { get; set; }
+
+    public RErrMsgPi()
+    {
+    }
 
     public RErrMsgPi(int status, string msg)
     {
@@ -474,7 +488,7 @@ public class DataObjCopyInpPi : Message
     [XmlElement("dest")]
     public DataObjInpPi Dest { get; set; }
 
-    public DataObjCopyInpPi()
+    public DataObjCopyInpPi()   
     {
     }
 
