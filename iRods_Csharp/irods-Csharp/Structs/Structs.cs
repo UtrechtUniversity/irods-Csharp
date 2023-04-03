@@ -237,8 +237,7 @@ public class CsNegPi : Message
     public CsNegPi(ClientServerPolicyResult policyResult)
     {
         Status = policyResult is ClientServerPolicyResult.Failure ? 0 : 1;
-       // Result = $"CS_NEG_RESULT_KW={ClientServerPolicyToString(policyResult)}"; //NOK
-        Result = $"cs_neg_result_kw={ClientServerPolicyToString(policyResult)};"; //OK
+        Result = $"cs_neg_result_kw={ClientServerPolicyToString(policyResult)};";
     }
 
     private static string ClientServerPolicyToString(ClientServerPolicyResult policyResult) =>
