@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using irods_Csharp;
+using static System.Collections.Specialized.BitVector32;
 using Path = System.IO.Path;
 
 namespace Testing
@@ -30,6 +31,9 @@ namespace Testing
             IrodsSession testSession = new IrodsSession(accountOptions["irods_host"], int.Parse(accountOptions["irods_port"]), accountOptions["irods_home"], accountOptions["irods_user_name"], accountOptions["irods_zone_name"], AuthenticationScheme.Pam, 24, clientServerNegotiation);
 
 
+
+
+
             bool connected = false;
             while (!connected)
             {
@@ -38,6 +42,25 @@ namespace Testing
                     string hashedPassword = testSession.Setup(File.ReadAllText(passwordLocation));
                     testSession.Start(hashedPassword);
                     connected = true;
+
+                    string NewFile = "/TestMe/newObject_Ingress1.txt";
+
+                    testSession.Collections.Create("/TestMe/");
+                    testSession.DataObjects.Create(NewFile);
+                    //Collection newCollection = testSession.Collections.Open("/home/gbiomed_pilot011/");
+
+
+                    //testSession.Collections.rea
+                    //
+                    //// Opening this new data object
+                    DataObj newObject = testSession.DataObjects.Open(NewFile, Options.FileMode.ReadWrite);
+
+
+                    //// Writing data to this new file
+                    newObject.Write(File.ReadAllBytes(@"C:\temp\TestDoc.txt"));
+                    //Console.Write(Encoding.UTF32.GetString(testSession.DataObjects.Read("/TestMe/newObject123.txt")));
+                    newObject.Dispose();
+
                 }
                 catch (Exception e)
                 {

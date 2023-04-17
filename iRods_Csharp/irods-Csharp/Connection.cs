@@ -38,7 +38,7 @@ internal class Connection : IDisposable
         serverSocket.Connect(_account.Host, _account.Port);
         _serverStream = new NetworkStream(serverSocket)
         {
-            ReadTimeout = 5000
+            ReadTimeout = 100000
         };
 
         if (_requestServerNegotiation == null)
