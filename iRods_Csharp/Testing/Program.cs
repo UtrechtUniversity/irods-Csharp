@@ -43,14 +43,12 @@ namespace Testing
                     testSession.Start(hashedPassword);
                     connected = true;
 
-                    string NewFile = "/TestMe/newObject_Ingress1.txt";
+                    string NewFile = "/TestMe/newObject_Ingress3.txt";
 
-                    testSession.Collections.Create("/TestMe/");
+                    //testSession.Collections.Create("/TestMe/");
                     testSession.DataObjects.Create(NewFile);
                     //Collection newCollection = testSession.Collections.Open("/home/gbiomed_pilot011/");
 
-
-                    //testSession.Collections.rea
                     //
                     //// Opening this new data object
                     DataObj newObject = testSession.DataObjects.Open(NewFile, Options.FileMode.ReadWrite);
