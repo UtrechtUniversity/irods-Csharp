@@ -43,7 +43,7 @@ namespace Testing
                     testSession.Start(hashedPassword);
                     connected = true;
 
-                    string NewFile = "/TestMe/newObject_Ingress3.txt";
+                    string NewFile = "/TestMe/newObject_Ingress4.txt";
 
                     //testSession.Collections.Create("/TestMe/");
                     testSession.DataObjects.Create(NewFile);

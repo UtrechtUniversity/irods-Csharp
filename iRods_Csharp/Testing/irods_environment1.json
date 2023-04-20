@@ -7,7 +7,7 @@
   "irods_encryption_salt_size": 8,
   "irods_encryption_encryption": 32,
   "irods_encryption_num_hash_rounds": 16,
-  "irods_user_name": "gbiomed_pilot011_ingress",
+  "irods_user_name": "machine_SWS",
   "irods_ssl_ca_certificate_file": "",
   "irods_ssl_verify_server": "cert",
   "irods_client_server_negotiation": "request_server_negotiation",
