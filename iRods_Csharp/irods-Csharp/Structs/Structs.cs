@@ -140,10 +140,7 @@ public class RErrMsgPi : Message
         Msg = msg;
     }
 
-    public RErrMsgPi()
-    {
-        
-    }
+
 }
 
 [XmlType("None")]
