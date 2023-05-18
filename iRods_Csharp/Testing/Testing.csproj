@@ -6,6 +6,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="irods_environment - kopie %282%29.json" />
+    <None Remove="irods_environment.json" />
+    <None Remove="irods_environment1.json" />
+    <None Remove="irods_environment2.json" />
+    <None Remove="password - kopie %282%29.txt" />
+    <None Remove="password.txt" />
+    <None Remove="password1.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\irods-Csharp\irods-Csharp.csproj" />
   </ItemGroup>
 

@@ -14,7 +14,11 @@ public enum AuthenticationScheme
     /// <summary>
     /// Pluggable Authentication Modules (PAM) authentication
     /// </summary>
-    Pam
+    Pam,
+    /// <summary>
+    /// Native authentication
+    /// </summary>
+    native
 }
 
 /// <summary>

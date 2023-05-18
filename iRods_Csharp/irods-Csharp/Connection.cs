@@ -209,6 +209,21 @@ internal class Connection : IDisposable
         return msgHeaderStructServer.MsgBody!.Result;
     }
 
+
+    /// <summary>
+    /// Authentication native.
+    /// </summary>
+    /// <param name="password">The user password.</param>
+    /// <returns>The Native Password</returns>
+    public string Native(string password)
+    {
+        if (_serverStream is not SslStream) Secure();
+
+        return password;
+    }
+
+
+
     /// <summary>
     /// Sends a packet of type T to the server.
     /// </summary>
@@ -217,7 +232,7 @@ internal class Connection : IDisposable
     public void SendPacket<T>(Packet<T> packet)
         where T : Message, new()
     {
-        WriteLog(ConsoleColor.DarkGray, packet);
+        //T.O. WriteLog(ConsoleColor.DarkGray, packet);
          
         if (packet.MsgBodyBytes != null) packet.MsgHeader.MsgLen = packet.MsgBodyBytes.Length;
         if (packet.ErrorBytes != null) packet.MsgHeader.ErrorLen = packet.ErrorBytes.Length;
