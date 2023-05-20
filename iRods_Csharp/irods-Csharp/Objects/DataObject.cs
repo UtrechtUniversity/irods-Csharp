@@ -1,33 +1,35 @@
 ﻿using System;
+using irods_Csharp;
+using irods_Csharp.Objects;
 using static irods_Csharp.Options.SeekMode;
 
-namespace irods_Csharp;
+namespace Objects.Objects;
 
 /// <summary>
 /// Class representing a Data Object on the server, can be used to read from and write to
 /// </summary>
-public class DataObj : ITaggable, IDisposable
+public class DataObject : ITaggable, IDisposable
 {
     internal int Descriptor;
 
-    private readonly DataObjectManager _manager;
+    private readonly IrodsSession _session;
     private readonly Path _path;
 
-    public string Path() => _path;
+    public string Path => _path;
 
-    public string MetaType() => "-d";
+    public string MetaType => "-d";
 
     /// <summary>
     /// DataObj constructor
     /// </summary>
     /// <param name="descriptor">FileDescriptor received from server</param>
     /// <param name="path">Path to data object</param>
-    /// <param name="manager">DataObjManager used to perform methods</param>
-    internal DataObj(int descriptor, Path path, DataObjectManager manager)
+    /// <param name="session">Session used to perform methods</param>
+    internal DataObject(int descriptor, Path path, IrodsSession session)
     {
         Descriptor = descriptor;
         _path = path;
-        _manager = manager;
+        _session = session;
     }
 
     /// <summary>
@@ -35,16 +37,17 @@ public class DataObj : ITaggable, IDisposable
     /// </summary>
     public void Dispose()
     {
-        Packet<OpenedDataObjInpPi> descRequest = new (ApiNumberData.DATA_OBJ_CLOSE_AN)
+        Packet<OpenedDataObjInpPi> descRequest = new(ApiNumberData.DATA_OBJ_CLOSE_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, 0, 0, 0, 0, 0)
             {
                 KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
-        _manager.Session.SendPacket(descRequest);
 
-        _manager.Session.ReceivePacket<None>();
+        _session.Connection.SendPacket(descRequest);
+
+        _session.Connection.ReceivePacket<None>();
     }
 
     /// <summary>
@@ -53,7 +56,7 @@ public class DataObj : ITaggable, IDisposable
     /// <param name="file">Data to write</param>
     public void Write(byte[] file)
     {
-        Packet<OpenedDataObjInpPi> writeRequest = new (ApiNumberData.DATA_OBJ_WRITE_AN)
+        Packet<OpenedDataObjInpPi> writeRequest = new(ApiNumberData.DATA_OBJ_WRITE_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, file.Length, 0, 0, 0, 0)
             {
@@ -61,9 +64,9 @@ public class DataObj : ITaggable, IDisposable
             },
             Binary = file
         };
-        _manager.Session.SendPacket(writeRequest);
+        _session.Connection.SendPacket(writeRequest);
 
-        _manager.Session.ReceivePacket<None>();
+        _session.Connection.ReceivePacket<None>();
     }
 
     /// <summary>
@@ -88,16 +91,16 @@ public class DataObj : ITaggable, IDisposable
     /// <returns>Pointer to place in file</returns>
     public int Seek(int offset, Options.SeekMode seekMode)
     {
-        Packet<OpenedDataObjInpPi> readRequest = new (ApiNumberData.DATA_OBJ_LSEEK_AN)
+        Packet<OpenedDataObjInpPi> readRequest = new(ApiNumberData.DATA_OBJ_LSEEK_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, 0, (int)seekMode, 0, offset, 0)
             {
                 KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
-        _manager.Session.SendPacket(readRequest);
+        _session.Connection.SendPacket(readRequest);
 
-        Packet<FileLseekOutPi> readReply = _manager.Session.ReceivePacket<FileLseekOutPi>();
+        Packet<FileLseekOutPi> readReply = _session.Connection.ReceivePacket<FileLseekOutPi>();
 
         return readReply.MsgBody.Offset;
     }
@@ -111,18 +114,18 @@ public class DataObj : ITaggable, IDisposable
     {
         if (length == -1) length = Left();
 
-        Packet<OpenedDataObjInpPi> readRequest = new (ApiNumberData.DATA_OBJ_READ_AN)
+        Packet<OpenedDataObjInpPi> readRequest = new(ApiNumberData.DATA_OBJ_READ_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, length, 0, 0, 0, 0)
             {
                 KeyValPairPi = new KeyValPairPi(0, null, null)
             }
         };
-        _manager.Session.SendPacket(readRequest);
+        _session.Connection.SendPacket(readRequest);
 
-        Packet<None> readReply = _manager.Session.ReceivePacket<None>();
+        Packet<None> readReply = _session.Connection.ReceivePacket<None>();
 
-        return readReply.Binary ?? new byte[0];
+        return readReply.Binary ?? Array.Empty<byte>();
     }
 
     /// <summary>
@@ -130,7 +133,7 @@ public class DataObj : ITaggable, IDisposable
     /// </summary>
     public void Remove()
     {
-        _manager.Remove(_path);
+        _session.RemoveDataObject(_path);
     }
 
     /// <summary>
@@ -150,9 +153,9 @@ public class DataObj : ITaggable, IDisposable
     /// </summary>
     /// <param name="maxRows">Maximum amount of metadata rows to query</param>
     /// <returns>Metadata attached to data object</returns>
-    public Meta[] Meta(int maxRows = 500)
+    public Metadata[] QueryMetadata(int maxRows = 500)
     {
-        return _manager.Session.Queries.QueryMeta(_path, "-d", maxRows);
+        return _session.QueryMetadata(_path, "-d", maxRows);
     }
 
     /// <summary>
@@ -161,9 +164,9 @@ public class DataObj : ITaggable, IDisposable
     /// <param name="name">Metadata name</param>
     /// <param name="value">Metadata value</param>
     /// <param name="units">Metadata units</param>
-    public void AddMeta(string name, string value, int units = -1)
+    public void AddMetadata(string name, string value, int units = -1)
     {
-        _manager.Session.Meta.AddMeta(this, name, value, units);
+        _session.AddMetadata(this, name, value, units);
     }
 
     /// <summary>
@@ -172,8 +175,8 @@ public class DataObj : ITaggable, IDisposable
     /// <param name="name">Metadata name</param>
     /// <param name="value">Metadata value</param>
     /// <param name="units">Metadata units</param>
-    public void RemoveMeta(string name, string value, int units = -1)
+    public void RemoveMetadata(string name, string value, int units = -1)
     {
-        _manager.Session.Meta.RemoveMeta(this, name, value, units);
+        _session.RemoveMetadata(this, name, value, units);
     }
 }

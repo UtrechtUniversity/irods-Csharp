@@ -1,9 +1,11 @@
 ﻿using System;
+using Objects;
+using Objects.Objects;
 using static irods_Csharp.Options;
 
 // ReSharper disable once InconsistentNaming
 
-namespace irods_Csharp;
+namespace irods_Csharp.Objects;
 
 /// <summary>
 /// Class representing an irods collection
@@ -11,7 +13,7 @@ namespace irods_Csharp;
 public class Collection : ITaggable
 {
     internal int Id;
-    private readonly CollectionManager _manager;
+    private readonly IrodsSession _session;
     internal Path _path;
 
     /// <summary>
@@ -19,24 +21,25 @@ public class Collection : ITaggable
     /// </summary>
     /// <param name="path">Path to this collection</param>
     /// <param name="id">Collection id</param>
-    /// <param name="manager">Manager of this collection</param>
-    internal Collection(Path path, int id, CollectionManager manager)
+    /// <param name="session">Session used to perform methods</param>
+    internal Collection(Path path, int id, IrodsSession session)
     {
         Id = id;
         _path = path;
-        _manager = manager;
+        _session = session;
     }
 
     /// <summary>
     /// Type needed for metadata operations
     /// </summary>
-    /// <returns>-c</returns>
-    public string MetaType() => "-c";
+    /// <value>-c</value>
+    public string MetaType => "-c";
+
     /// <summary>
     /// Path to this collection
     /// </summary>
-    /// <returns>Path to this collection in string format</returns>
-    public string Path() => _path.ToString();
+    /// <value>Path to this collection in string format</value>
+    public string Path => _path.ToString();
 
     /// <summary>
     /// Changes directory of this collection, while checking if the new collection exists
@@ -49,17 +52,17 @@ public class Collection : ITaggable
             // Go up in directories for every ../ in the path
             while (path.StartsWith(".."))
             {
-                path = (path.Length > 3) ? path.Substring(3, path.Length - 3) : "";
+                path = path.Length > 3 ? path[3..] : "";
                 int i = _path.ToString().LastIndexOf("/", StringComparison.Ordinal);
                 _path = new Path(_path.ToString()[..i]);
                 if (_path.ToString() != "")
                 {
-                    Collection[] collections = _manager.Session.Queries.QueryCollection("", _path.ToString().Substring(1, _path.ToString().Length - 1), true);
+                    Collection[] collections = _session.QueryCollection("", _path.ToString()[1..], true);
                     Id = collections[0].Id;
                 }
                 else
                 {
-                    Id = _manager.Session.HomeCollection().Id;
+                    Id = _session.HomeCollection().Id;
                 }
                 if (path.Length == 0) break;
             }
@@ -72,10 +75,9 @@ public class Collection : ITaggable
                 Id = collections[0].Id;
             }
         }
-        catch (Exception e)
+        catch (Exception e) when (e.Message == "CAT_NO_ROWS_FOUND")
         {
-            if (e.Message == "CAT_NO_ROWS_FOUND") throw new Exception("Collection doesn't exist");
-            throw;
+            throw new Exception("Collection doesn't exist");
         }
     }
 
@@ -87,10 +89,11 @@ public class Collection : ITaggable
     {
         int index = _path.ToString().LastIndexOf('/');
         Path path = new (_path.ToString()[..index]);
-        _manager.Rename(_path, path+newName);
+        _session.RenameCollection(_path, path+newName);
     }
 
-    #region Data Object
+    #region DataObject
+
     /// <summary>
     /// Opens data object.
     /// </summary>
@@ -99,9 +102,9 @@ public class Collection : ITaggable
     /// <param name="truncate">Clear file when opening</param>
     /// <param name="create">Create file if it does not yet exist</param>
     /// <returns>DataObj object which can be used to read from or write to</returns>
-    public DataObj OpenDataObj(string name, FileMode fileMode, bool truncate = false, bool create = false)
+    public DataObject OpenDataObj(string name, FileMode fileMode, bool truncate = false, bool create = false)
     {
-        return _manager.Session.DataObjects.Open(_path + name, fileMode, truncate, create);
+        return _session.OpenDataObject(_path + name, fileMode, truncate, create);
     }
 
     /// <summary>
@@ -111,7 +114,7 @@ public class Collection : ITaggable
     /// <param name="target">New name of data object</param>
     public void RenameDataObj(string source, string target)
     {
-        _manager.Session.Rename(_path + source, _path + target, false);
+        _session.RenameDataObject(_path + source, _path + target);
     }
 
     /// <summary>
@@ -120,7 +123,7 @@ public class Collection : ITaggable
     /// <param name="path">Path where data object should be created, including name</param>
     public void CreateDataObj(string path)
     {
-        _manager.Session.DataObjects.Create(_path + path);
+        _session.CreateDataObject(_path + path);
     }
 
     /// <summary>
@@ -130,7 +133,7 @@ public class Collection : ITaggable
     /// <param name="file">Byte array which should be written</param>
     public void WriteDataObj(string path, byte[] file)
     {
-        _manager.Session.DataObjects.Write(_path + path, file);
+        _session.WriteDataObject(_path + path, file);
     }
 
     /// <summary>
@@ -141,7 +144,7 @@ public class Collection : ITaggable
     /// <returns>Content of data object in byte array form</returns>
     public byte[] ReadDataObj(string path, int length = -1)
     {
-        return _manager.Session.DataObjects.Read(_path + path, length);
+        return _session.ReadDataObject(_path + path, length);
     }
 
     /// <summary>
@@ -150,7 +153,7 @@ public class Collection : ITaggable
     /// <param name="path">Path to parent collection of object</param>
     public void RemoveDataObj(string path)
     {
-        _manager.Session.DataObjects.Remove(_path + path);
+        _session.RemoveDataObject(_path + path);
     }
 
     #endregion
@@ -164,7 +167,7 @@ public class Collection : ITaggable
     /// <returns>Collection object</returns>
     public Collection OpenCollection(string name, int id = -1)
     {
-        return _manager.Open(_path + name, id);
+        return _session.OpenCollection(_path + name, id);
     }
 
     /// <summary>
@@ -174,7 +177,7 @@ public class Collection : ITaggable
     /// <param name="target">new name of collection</param>
     public void RenameCollection(string source, string target)
     {
-        _manager.Rename(_path + source, _path + target);
+        _session.RenameCollection(_path + source, _path + target);
     }
 
     /// <summary>
@@ -183,7 +186,7 @@ public class Collection : ITaggable
     /// <param name="name">Name of new collection</param>
     public void CreateCollection(string name)
     {
-        _manager.Create(_path + name);
+        _session.CreateCollection(_path + name);
     }
 
     /// <summary>
@@ -193,11 +196,12 @@ public class Collection : ITaggable
     /// <param name="recursive">Delete items of collection if they exist</param>
     public void RemoveCollection(string path, bool recursive = true)
     {
-        _manager.Remove(_path+path, recursive);
+        _session.RemoveCollection(_path+path, recursive);
     }
     #endregion
 
     #region Query
+
     /// <summary>
     /// Perform general query with supplied conditions and select statements, casts results to supplied type.
     /// </summary>
@@ -208,7 +212,7 @@ public class Collection : ITaggable
     /// <returns>Array of objects of the supplied type</returns>
     private object Query(Column[] select, Condition[] conditions, Type type, int maxRows = 500)
     {
-        return _manager.Session.Queries.Query(_path, select, conditions, type, maxRows);
+        return _session.Query(_path, select, conditions, type, maxRows);
     }
 
     /// <summary>
@@ -220,7 +224,7 @@ public class Collection : ITaggable
     /// <returns>Array of matching collections</returns>
     public Collection[] QueryCollection(string name, bool strict = false, int maxRows = 500)
     {
-        return _manager.Session.Queries.QueryCollection(_path, name, strict, maxRows);
+        return _session.QueryCollection(_path, name, strict, maxRows);
     }
 
     /// <summary>
@@ -233,7 +237,7 @@ public class Collection : ITaggable
     /// <returns>Array of matching collections</returns>
     public Collection[] MQueryCollection(string metaName = "", string metaValue = "", int metaUnits = -1, int maxRows = 500)
     {
-        return _manager.Session.Queries.MQueryCollection(_path, metaName,metaValue, metaUnits, maxRows);
+        return _session.MQueryCollection(_path, metaName,metaValue, metaUnits, maxRows);
     }
 
     /// <summary>
@@ -242,9 +246,9 @@ public class Collection : ITaggable
     /// <param name="name">Name of Data Object which should be matched</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of matching objects</returns>
-    public DataObj[] QueryObj(string name, int maxRows = 500)
+    public DataObject[] QueryDataObject(string name, int maxRows = 500)
     {
-        return _manager.Session.Queries.QueryObj(name, _path, Id, maxRows);
+        return _session.QueryDataObject(name, _path, Id, maxRows);
     }
 
     /// <summary>
@@ -255,22 +259,23 @@ public class Collection : ITaggable
     /// <param name="metaUnits">Units of meta triplet to search</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of matching objects</returns>
-    public DataObj[] MQueryObj(string metaName = "", string metaValue = "", int metaUnits = -1, int maxRows = 500)
+    public DataObject[] MQueryDataObject(string metaName = "", string metaValue = "", int metaUnits = -1, int maxRows = 500)
     {
-        return _manager.Session.Queries.MQueryObj(_path, metaName, metaValue, metaUnits, Id, maxRows);
+        return _session.MQueryDataObject(_path, metaName, metaValue, metaUnits, Id, maxRows);
     }
 
     #endregion
 
     #region Meta
+
     /// <summary>
     /// Query metadata attached to this collection
     /// </summary>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of Meta structs that belong to this object</returns>
-    public Meta[] Meta(int maxRows = 500)
+    public Metadata[] QueryMetadata(int maxRows = 500)
     {
-        return _manager.Session.Queries.QueryMeta(_path, MetaType(), maxRows);
+        return _session.QueryMetadata(_path, MetaType, maxRows);
     }
 
     /// <summary>
@@ -279,9 +284,9 @@ public class Collection : ITaggable
     /// <param name="name">Metadata name</param>
     /// <param name="value">Metadata value</param>
     /// <param name="units">Metadata units, these are optional</param>
-    public void AddMeta(string name, string value, int units = -1)
+    public void AddMetadata(string name, string value, int units = -1)
     {
-        _manager.Session.Meta.AddMeta(this, name, value, units);
+        _session.AddMetadata(this, name, value, units);
     }
 
     /// <summary>
@@ -290,9 +295,9 @@ public class Collection : ITaggable
     /// <param name="name">Metadata name</param>
     /// <param name="value">Metadata value</param>
     /// <param name="units">Metadata units, these are optional</param>
-    public void RemoveMeta(string name, string value, int units = -1)
+    public void RemoveMetadata(string name, string value, int units = -1)
     {
-        _manager.Session.Meta.RemoveMeta(this, name, value, units);
+        _session.RemoveMetadata(this, name, value, units);
     }
     #endregion
 }

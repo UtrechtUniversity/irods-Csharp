@@ -1,26 +1,11 @@
 ﻿using System;
 using System.Security.Cryptography;
 using System.Text;
+using irods_Csharp.Enums;
 
 // ReSharper disable InconsistentNaming
 
 namespace irods_Csharp;
-
-/// <summary>
-/// Possible authentication schemes.
-/// </summary>
-public enum AuthenticationScheme
-{
-    /// <summary>
-    /// Pluggable Authentication Modules (PAM) authentication
-    /// </summary>
-    Pam,
-
-    /// <summary>
-    /// Native authentication
-    /// </summary>
-    Native
-}
 
 /// <summary>
 /// Class holding authentication information

@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Linq;
 using static irods_Csharp.Utility;
 using System.Security.Cryptography;
+using irods_Csharp.Enums;
 
 namespace irods_Csharp;
 

@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace irods_Csharp;
@@ -85,24 +83,5 @@ public class Utility
             Console.WriteLine(data.ToString());
         Console.SetOut(currentWriter);
         Console.ForegroundColor = currentColor;
-    }
-
-    /// <summary>
-    /// Loads a json from the supplied filepath into a dictionary.
-    /// </summary>
-    /// <param name="filepath">The filepath of the json.</param>
-    /// <returns>The dictionary with the information from the json.</returns>
-    public static Dictionary<string, string> LoadJson(string filepath)
-    {
-        string[] lines = File.ReadAllLines(filepath);
-
-        Dictionary<string, string> values = new ();
-        for (int i = 1; i < lines.Length - 1; i++)
-        {
-            string[] tempString = lines[i].Replace(" ", "").Replace("\"", "").Replace("\\", "").Replace(",", "").Split(':').ToArray();
-            values.Add(tempString[0], tempString[1]);
-        }
-
-        return values;
     }
 }

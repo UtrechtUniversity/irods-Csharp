@@ -1,4 +1,6 @@
-﻿namespace irods_Csharp;
+﻿using irods_Csharp.Enums;
+
+namespace irods_Csharp;
 
 public class ClientServerNegotiation
 {

@@ -2,6 +2,10 @@
 using System.IO;
 using System.Text;
 using irods_Csharp;
+using irods_Csharp.Enums;
+using irods_Csharp.Objects;
+using Objects;
+using Objects.Objects;
 
 namespace Testing
 {
@@ -31,10 +35,10 @@ namespace Testing
 
             
             // Creating a new collection inside a directory which already exists
-            session.Collections.Create("exampleDir/newCollection");
+            session.CreateCollection("exampleDir/newCollection");
 
             // Opening this collection
-            Collection newCollection = session.Collections.Open("exampleDir/newCollection");
+            Collection newCollection = session.OpenCollection("exampleDir/newCollection");
 
             // Creating collection within this collection
             newCollection.CreateCollection("deeperCollection");
@@ -43,51 +47,51 @@ namespace Testing
             newCollection.RenameCollection("deeperCollection", "deeperCollectionV2");
 
             // Removing this new collection, this time from session
-            session.Collections.Remove("exampleDir/newCollection/deeperCollectionV2");
+            session.RemoveCollection("exampleDir/newCollection/deeperCollectionV2");
 
 
             // Creating a new Data object inside a pre-existing directory
-            session.DataObjects.Create("exampleDir/newObject.txt");
+            session.CreateDataObject("exampleDir/newObject.txt");
 
             // Opening this new data object
-            DataObj newObject = session.DataObjects.Open("exampleDir/newObject.txt", Options.FileMode.ReadWrite);
+            DataObject newObject = session.OpenDataObject("exampleDir/newObject.txt", Options.FileMode.ReadWrite);
 
             // Writing data to this new file
             newObject.Write(File.ReadAllBytes("myPc/exampleFile.txt"));
 
             // Writing file contents to console directly from session this time
-            Console.Write(Encoding.UTF32.GetString(session.DataObjects.Read("exampleDir/newObject.txt")));
+            Console.Write(Encoding.UTF32.GetString(session.ReadDataObject("exampleDir/newObject.txt")));
 
 
             // Adding metadata to newCollection from before, without units
-            session.Meta.AddMeta(newCollection, "metaName", "metaValue");
+            session.AddMetadata(newCollection, "metaName", "metaValue");
 
             // Adding metadata directly, this time also with some units
-            newCollection.AddMeta("metaName", "metaValue", 8);
+            newCollection.AddMetadata("metaName", "metaValue", 8);
 
             // The following method will return an array with two meta objects: <metaName, metaValue> and <metaName, metaValue, 8>
-            Meta[] metadata = newCollection.Meta();
+            Metadata[] metadata = newCollection.QueryMetadata();
 
             // Metadata tags can also be removed, but the values need to be an exact match, even the units, as these do not aggregate
-            newCollection.RemoveMeta("metaName", "metaValue", 8);
+            newCollection.RemoveMetadata("metaName", "metaValue", 8);
 
 
             // Query all collections within /example/dir with a name that contains the word "apple"
-            Collection[] collections = session.Queries.QueryCollection("/example/dir", "apple");
+            Collection[] collections = session.QueryCollection("/example/dir", "apple");
 
             // A new query could be performed on the first of this collections, this time querying a data object
             // This particular query will find all .txt files within the collection
-            DataObj[] objects = collections[0].QueryObj(".txt");
+            DataObject[] objects = collections[0].QueryDataObject(".txt");
 
             // It is also possible to query based on meta data
-            DataObj[] objects2 = session.Queries.MQueryObj("/example/dir", "color", "red", 5);
+            DataObject[] objects2 = session.MQueryDataObject("/example/dir", "color", "red", 5);
 
             // Not all meta data triple values need to be specified however,
             // this wil query all collections within newCollection
             Collection[] collections2 = newCollection.MQueryCollection(metaValue: "red");
 
             // Then it is also possible to get all the meta triples attached to a collection
-            Meta[] collectionMeta = collections2[0].Meta();
+            Metadata[] collectionMeta = collections2[0].QueryMetadata();
         }
     }
 }

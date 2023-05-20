@@ -2,7 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using irods_Csharp;
+using irods_Csharp.Enums;
+using irods_Csharp.Objects;
+using Objects;
+using Objects.Objects;
 using Path = System.IO.Path;
 
 namespace Testing
@@ -18,9 +23,9 @@ namespace Testing
             Utility.Log = Console.Out;
             Utility.Text = Console.Out;
 
-
             string accountLocation = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"..\..\..\irods_environment.json"));
-            Dictionary<string, string> accountOptions = Utility.LoadJson(accountLocation);
+            Dictionary<string, string> accountOptions =
+                JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(accountLocation));
             string passwordLocation = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"..\..\..\password.txt"));
 
 
@@ -75,7 +80,7 @@ namespace Testing
             }
 
             Collection testCollection = testSession.HomeCollection();
-            DataObj testDataObj = null;
+            DataObject testDataObj = null;
 
             bool busy = true;
             while (busy)
@@ -91,7 +96,7 @@ namespace Testing
                                 testCollection.ChangeDirectory(input[1]);
                                 break;
                             case "pwd":
-                                Utility.WriteText(ConsoleColor.Cyan, testCollection.Path());
+                                Utility.WriteText(ConsoleColor.Cyan, testCollection.Path);
                                 break;
                             case "mkdir":
                                 testCollection.CreateCollection(input[1]);
@@ -140,49 +145,37 @@ namespace Testing
                                 switch (input[1])
                                 {
                                     case "obj":
-                                        DataObj[] dataObjs = { };
-                                        switch (input[2])
-                                        { 
-                                            case "std":
-                                                dataObjs = testCollection.QueryObj(input[3]);
-                                                break;
-                                            case "meta":
-                                                dataObjs = testCollection.MQueryObj(input[3], input[4], int.Parse(input[5]));
-                                                break;
-                                        }
-                                        foreach (DataObj obj in dataObjs)
+                                        DataObject[] dataObjs = input[2] switch
                                         {
-                                            Utility.WriteLine(ConsoleColor.Blue, obj.Path(), Utility.Log);
-                                        }
+                                            "std" => testCollection.QueryDataObject(input[3]),
+                                            "meta" => testCollection.MQueryDataObject(input[3], input[4], int.Parse(input[5])),
+                                            _ => Array.Empty<DataObject>()
+                                        };
+                                        foreach (DataObject obj in dataObjs)
+                                            Utility.WriteLine(ConsoleColor.Blue, obj.Path, Utility.Log);
                                         break;
                                     case "col":
-                                        Collection[] collections = { };
-                                        switch (input[2])
+                                        Collection[] collections = input[2] switch
                                         {
-                                            case "std":
-                                                collections = testCollection.QueryCollection(input[3]);
-                                                break;
-                                            case "meta":
-                                                collections = testCollection.MQueryCollection(input[3], input[4], int.Parse(input[5]));
-                                                break;
-                                        }
+                                            "std" => testCollection.QueryCollection(input[3]),
+                                            "meta" => testCollection.MQueryCollection(
+                                                input[3],
+                                                input[4],
+                                                int.Parse(input[5])
+                                            ),
+                                            _ => Array.Empty<Collection>()
+                                        };
                                         foreach (Collection collection in collections)
-                                        {
-                                            Utility.WriteLine(ConsoleColor.Blue, collection.Path(), Utility.Log);
-                                        }
+                                            Utility.WriteLine(ConsoleColor.Blue, collection.Path, Utility.Log);
                                         break;
                                     case "meta":
-                                        Meta[] metas = { };
-                                        switch (input[2])
+                                        Metadata[] metas = input[2] switch
                                         {
-                                            case "obj":
-                                                metas = testDataObj.Meta();
-                                                break;
-                                            case "col":
-                                                metas = testCollection.Meta();
-                                                break;
-                                        }
-                                        foreach (Meta meta in metas)
+                                            "obj" => testDataObj.QueryMetadata(),
+                                            "col" => testCollection.QueryMetadata(),
+                                            _ => Array.Empty<Metadata>()
+                                        };
+                                        foreach (Metadata meta in metas)
                                         {
                                             if (meta.Units == null)  Utility.WriteText(ConsoleColor.Blue, "<" + meta.Name + "," + meta.Value + ">");
                                             else Utility.WriteText(ConsoleColor.Blue, "<" + meta.Name + "," + meta.Value + "," + meta.Units + ">");
@@ -194,10 +187,10 @@ namespace Testing
                                 switch (input[1])
                                 {
                                     case "col":
-                                        testCollection.AddMeta(input[2], input[3], int.Parse(input[4]));
+                                        testCollection.AddMetadata(input[2], input[3], int.Parse(input[4]));
                                         break;
                                     case "obj":
-                                        testDataObj.AddMeta(input[2], input[3], int.Parse(input[4]));
+                                        testDataObj.AddMetadata(input[2], input[3], int.Parse(input[4]));
                                         break;
                                 }
                                 break;
@@ -205,10 +198,10 @@ namespace Testing
                                 switch (input[1])
                                 {
                                     case "col":
-                                        testCollection.RemoveMeta(input[2], input[3], input.Length > 4 ? int.Parse(input[4]) : -1);
+                                        testCollection.RemoveMetadata(input[2], input[3], input.Length > 4 ? int.Parse(input[4]) : -1);
                                         break;
                                     case "obj":
-                                        testDataObj.RemoveMeta(input[2], input[3], input.Length > 4 ? int.Parse(input[4]) : -1);
+                                        testDataObj.RemoveMetadata(input[2], input[3], input.Length > 4 ? int.Parse(input[4]) : -1);
                                         break;
                                 }
                                 break;

@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Sockets;
-using System.Reflection;
-using System.Runtime;
 using System.Runtime.CompilerServices;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
+using irods_Csharp.Enums;
+using irods_Csharp.Objects;
+using Objects;
+using Objects.Objects;
 
 // ReSharper disable EmptyConstructor
 // ReSharper disable NotAccessedField.Local
@@ -722,7 +722,7 @@ public class GenQueryOutPi : Message
                 Collection collection = new (
                     new Path(SqlResultPi[collectionNameColumn].Value[i].Replace(home.ToString(), "")),
                     int.Parse(SqlResultPi[collectionIdColumn].Value[i]),
-                    session.Collections
+                    session
                 );
                 collections[i] = collection;
             }
@@ -730,9 +730,9 @@ public class GenQueryOutPi : Message
             return collections;
         }
 
-        if (type == typeof(DataObj))
+        if (type == typeof(DataObject))
         {
-            List<DataObj> objects = new ();
+            List<DataObject> objects = new ();
             const int objNameColumn = 2;
 
             HashSet<string> names = new ();
@@ -742,7 +742,7 @@ public class GenQueryOutPi : Message
                 string name = SqlResultPi[objNameColumn].Value[i];
                 if (names.Add(name))
                 {
-                    DataObj dataObj = session.DataObjects.Open(path + name, mode, truncate);
+                    DataObject dataObj = session.OpenDataObject(path + name, mode, truncate);
                     objects.Add(dataObj);
                 }
             }
@@ -750,16 +750,16 @@ public class GenQueryOutPi : Message
             return objects.ToArray();
         }
 
-        if (type == typeof(Meta))
+        if (type == typeof(Metadata))
         {
-            Meta[] objects = new Meta[RowCnt];
+            Metadata[] objects = new Metadata[RowCnt];
             const int metaNameColumn = 0, metaKeywordColumn = 1, metaUnitsColumn = 2;
 
             for (int i = 0; i < RowCnt; i++)
             {
                 string unitValue = SqlResultPi[metaUnitsColumn].Value[i];
                 int? units = unitValue == "" ? null : (int?)int.Parse(unitValue);
-                Meta meta = new (SqlResultPi[metaNameColumn].Value[i], SqlResultPi[metaKeywordColumn].Value[i], units);
+                Metadata meta = new (SqlResultPi[metaNameColumn].Value[i], SqlResultPi[metaKeywordColumn].Value[i], units);
                 objects[i] = meta;
             }
 
