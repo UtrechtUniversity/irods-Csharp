@@ -155,7 +155,7 @@ public class DataObject : ITaggable, IDisposable
     /// <returns>Metadata attached to data object</returns>
     public Metadata[] QueryMetadata(int maxRows = 500)
     {
-        return _session.QueryMetadata(_path, "-d", maxRows);
+        return _session.QueryMetadataPath(_path, "-d", maxRows);
     }
 
     /// <summary>

@@ -1,5 +1,4 @@
 ﻿using System;
-using Objects;
 using Objects.Objects;
 using static irods_Csharp.Options;
 
@@ -57,7 +56,7 @@ public class Collection : ITaggable
                 _path = new Path(_path.ToString()[..i]);
                 if (_path.ToString() != "")
                 {
-                    Collection[] collections = _session.QueryCollection("", _path.ToString()[1..], true);
+                    Collection[] collections = _session.QueryCollectionPath("", _path.ToString()[1..], true);
                     Id = collections[0].Id;
                 }
                 else
@@ -203,19 +202,6 @@ public class Collection : ITaggable
     #region Query
 
     /// <summary>
-    /// Perform general query with supplied conditions and select statements, casts results to supplied type.
-    /// </summary>
-    /// <param name="select">Array of table columns which should be queried</param>
-    /// <param name="conditions">Array of conditions for query</param>
-    /// <param name="type">Type to which query results should be cast</param>
-    /// <param name="maxRows">Maximum amount of rows to query</param>
-    /// <returns>Array of objects of the supplied type</returns>
-    private object Query(Column[] select, Condition[] conditions, Type type, int maxRows = 500)
-    {
-        return _session.Query(_path, select, conditions, type, maxRows);
-    }
-
-    /// <summary>
     /// Queries collections based on name.
     /// </summary>
     /// <param name="name">Name of collection which should be matched</param>
@@ -224,7 +210,7 @@ public class Collection : ITaggable
     /// <returns>Array of matching collections</returns>
     public Collection[] QueryCollection(string name, bool strict = false, int maxRows = 500)
     {
-        return _session.QueryCollection(_path, name, strict, maxRows);
+        return _session.QueryCollectionPath(_path, name, strict, maxRows);
     }
 
     /// <summary>
@@ -248,7 +234,7 @@ public class Collection : ITaggable
     /// <returns>Array of matching objects</returns>
     public DataObject[] QueryDataObject(string name, int maxRows = 500)
     {
-        return _session.QueryDataObject(name, _path, Id, maxRows);
+        return _session.QueryDataObjectPath(name, _path, Id, maxRows);
     }
 
     /// <summary>
@@ -275,7 +261,7 @@ public class Collection : ITaggable
     /// <returns>Array of Meta structs that belong to this object</returns>
     public Metadata[] QueryMetadata(int maxRows = 500)
     {
-        return _session.QueryMetadata(_path, MetaType, maxRows);
+        return _session.QueryMetadataPath(_path, MetaType, maxRows);
     }
 
     /// <summary>

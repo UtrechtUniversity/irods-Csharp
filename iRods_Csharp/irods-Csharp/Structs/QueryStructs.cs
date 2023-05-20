@@ -59,51 +59,44 @@ internal static class QueryModels
     /// Columns belonging to data objects
     /// </summary>
     /// <returns>Array of columns belonging to data objects</returns>
-    public static Column[] DataObject()
-    {
-        return new []
+    public static Column[] DataObject() =>
+        new []
         {
             D_DATA_ID, D_COLL_ID, DATA_NAME, DATA_REPL_NUM, DATA_VERSION, DATA_TYPE_NAME, DATA_SIZE, 
             D_RESC_NAME, D_DATA_PATH, D_OWNER_NAME, D_OWNER_ZONE, D_REPL_STATUS, D_DATA_STATUS, D_DATA_CHECKSUM,
             D_EXPIRY, D_MAP_ID, D_COMMENTS, D_CREATE_TIME, D_MODIFY_TIME
         };
-    }
 
     /// <summary>
     /// Columns belonging to collections
     /// </summary>
     /// <returns>Array of columns belonging to collections</returns>
-    public static Column[] Collection()
-    {
-        return new []
+    public static Column[] Collection() =>
+        new[]
         {
-            COLL_ID, COLL_NAME, COLL_PARENT_NAME, COLL_OWNER_NAME, COLL_OWNER_ZONE, COLL_MAP_ID, COLL_INHERITANCE, COLL_COMMENTS, COLL_CREATE_TIME, COLL_MODIFY_TIME
+            COLL_ID, COLL_NAME, COLL_PARENT_NAME, COLL_OWNER_NAME, COLL_OWNER_ZONE, COLL_MAP_ID, COLL_INHERITANCE,
+            COLL_COMMENTS, COLL_CREATE_TIME, COLL_MODIFY_TIME
         };
-    }
 
     /// <summary>
     /// Columns belonging to data object metadata
     /// </summary>
     /// <returns>Array of columns belonging to data object metadata</returns>
-    public static Column[] DataObjMeta()
-    {
-        return new[]
+    public static Column[] DataObjMeta() =>
+        new[]
         {
             COL_META_DATA_ATTR_NAME, COL_META_DATA_ATTR_VALUE, COL_META_DATA_ATTR_UNITS, COL_META_DATA_ATTR_ID, COL_META_DATA_CREATE_TIME, COL_META_DATA_MODIFY_TIME
         };
-    }
 
     /// <summary>
     /// Columns belonging to collection metadata
     /// </summary>
     /// <returns>Array of columns belonging to collection metadata</returns>
-    public static Column[] CollectionMeta()
-    {
-        return new[]
+    public static Column[] CollectionMeta() =>
+        new[]
         {
             COL_META_COLL_ATTR_NAME, COL_META_COLL_ATTR_VALUE, COL_META_COLL_ATTR_UNITS, COL_META_COLL_ATTR_ID, COL_META_COLL_CREATE_TIME, COL_META_COLL_MODIFY_TIME
         };
-    }
 
     public static Column D_DATA_ID = new (SqlType.Integer, "D_DATA_ID", 401);
     public static Column D_COLL_ID = new (SqlType.Integer, "D_COLL_ID", 402);

@@ -88,7 +88,7 @@ public class IrodsSession : IDisposable
     /// <param name="source">Original name</param>
     /// <param name="target">New name</param>
     /// <param name="isCollection">Whether the object is a collection or a data object</param>
-    private void Rename(string source, string target, bool isCollection)
+    private void RenameCollectionOrDataObject(string source, string target, bool isCollection)
     {
         int type = isCollection ? 12 : 11;
         Path home = new (_account.Home);
@@ -118,11 +118,9 @@ public class IrodsSession : IDisposable
     /// <returns>Home collection of the session</returns>
     public Collection HomeCollection()
     {
-        Collection[] colls = (Collection[])Query(
-            "",
+        Collection[] colls = QueryCollection(
             QueryModels.Collection(),
-            new[] { new Condition(QueryModels.COLL_NAME, "like", _account.Home) },
-            typeof(Collection)
+            new[] { new Condition(QueryModels.COLL_NAME, "like", _account.Home) }
         );
         return colls[0];
     }
@@ -136,7 +134,7 @@ public class IrodsSession : IDisposable
     /// <param name="target">New name of collection</param>
     public void RenameDataObject(string source, string target)
     {
-        Rename(source, target, false);
+        RenameCollectionOrDataObject(source, target, false);
     }
 
     /// <summary>
@@ -279,13 +277,11 @@ public class IrodsSession : IDisposable
     /// <summary>
     /// Perform general query with supplied conditions and select statements, casts results to supplied type.
     /// </summary>
-    /// <param name="path">Path of collection where should be searched</param>
     /// <param name="select">Array of table columns which should be queried</param>
     /// <param name="conditions">Array of conditions for query</param>
-    /// <param name="type">Type to which query results should be cast</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of objects of the supplied type</returns>
-    internal object Query(string path, Column[] select, Condition[] conditions, Type type, int maxRows = 500)
+    private GenQueryOutPi Query(Column[] select, Condition[] conditions, int maxRows = 500)
     {
         InxIvalPairPi selects = new (
             select.Length,
@@ -310,7 +306,97 @@ public class IrodsSession : IDisposable
 
         Packet<GenQueryOutPi> queryResult = Connection.ReceivePacket<GenQueryOutPi>();
 
-        return queryResult.MsgBody.Parse(type, this, _home, new Path(path));
+        return queryResult.MsgBody!;
+    }
+
+    /// <summary>
+    /// Perform general query with supplied conditions and select statements, casts results to supplied type.
+    /// </summary>
+    /// <param name="select">Array of table columns which should be queried</param>
+    /// <param name="conditions">Array of conditions for query</param>
+    /// <param name="maxRows">Maximum amount of rows to query</param>
+    /// <returns>Array of collections.</returns>
+    internal Collection[] QueryCollection(Column[] select, Condition[] conditions, int maxRows = 500)
+    {
+        GenQueryOutPi queryResult = Query(select, conditions, maxRows);
+
+        const int collectionNameColumn = 1, collectionIdColumn = 0;
+        return Enumerable.Range(0, queryResult.RowCnt)
+            .Select(
+                i => new Collection(
+                    new Path(queryResult.SqlResultPi[collectionNameColumn].Value[i].Replace(_home.ToString(), "")),
+                    int.Parse(queryResult.SqlResultPi[collectionIdColumn].Value[i]),
+                    this
+                )
+            )
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Perform general query with supplied conditions and select statements, casts results to supplied type.
+    /// </summary>
+    /// <param name="path">The path of the data object.</param>
+    /// <param name="select">Array of table columns which should be queried</param>
+    /// <param name="conditions">Array of conditions for query</param>
+    /// <param name="mode">The file mode for the data objects.</param>
+    /// <param name="maxRows">Maximum amount of rows to query</param>
+    /// <returns>Array of objects.</returns>
+    public DataObject[] QueryDataObject(
+        string path,
+        Column[] select,
+        Condition[] conditions,
+        Options.FileMode mode = Options.FileMode.ReadWrite,
+        int maxRows = 500
+    )
+    {
+        GenQueryOutPi queryResult = Query(select, conditions.ToArray(), maxRows);
+
+        const int objNameColumn = 2;
+        return Enumerable.Range(0, queryResult.RowCnt)
+            .Select(
+                i =>
+                {
+
+                    // TODO remove path and use from result.
+                    string newName = queryResult.SqlResultPi[objNameColumn].Value[i];
+                    DataObject dataObj = OpenDataObject(path + newName, mode);
+                    return dataObj;
+                }
+            )
+            .ToArray();
+    }
+
+
+    /// <summary>
+    /// Perform general query with supplied conditions and select statements, casts results to supplied type.
+    /// </summary>
+    /// <param name="select">Array of table columns which should be queried</param>
+    /// <param name="conditions">Array of conditions for query</param>
+    /// <param name="maxRows">Maximum amount of rows to query</param>
+    /// <returns>Array of metadata.</returns>
+    public Metadata[] QueryMetadata(
+        Column[] select,
+        Condition[] conditions,
+        int maxRows = 500
+    )
+    {
+        GenQueryOutPi queryResult = Query(select, conditions, maxRows);
+
+        const int metaNameColumn = 0, metaKeywordColumn = 1, metaUnitsColumn = 2;
+        return Enumerable.Range(0, queryResult.RowCnt)
+            .Select(
+                i =>
+                {
+                    string unitValue = queryResult.SqlResultPi[metaUnitsColumn].Value[i];
+                    int? units = unitValue == "" ? null : int.Parse(unitValue);
+                    return new Metadata(
+                        queryResult.SqlResultPi[metaNameColumn].Value[i],
+                        queryResult.SqlResultPi[metaKeywordColumn].Value[i],
+                        units
+                    );
+                }
+            )
+            .ToArray();
     }
 
     /// <summary>
@@ -321,17 +407,17 @@ public class IrodsSession : IDisposable
     /// <param name="strict">Whether or not the collection name should match exactly</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of matching collections</returns>
-    public Collection[] QueryCollection(string path, string name, bool strict = false, int maxRows = 500)
+    public Collection[] QueryCollectionPath(string path, string name, bool strict = false, int maxRows = 500)
     {
         Condition[] conditions = strict
-            ? new[] { new Condition(QueryModels.COLL_NAME, "=", (_home + path) + "/" + name) }
+            ? new[] { new Condition(QueryModels.COLL_NAME, "=", _home + path + "/" + name) }
             : new[]
             {
-                new Condition(QueryModels.COLL_NAME, "like", (_home + path) + "%"),
+                new Condition(QueryModels.COLL_NAME, "like", _home + path + "%"),
                 new Condition(QueryModels.COLL_NAME, "like", "%" + name + "%")
             };
 
-        return (Collection[])Query(path, QueryModels.Collection(), conditions, typeof(Collection));
+        return QueryCollection(QueryModels.Collection(), conditions, maxRows);
     }
 
     /// <summary>
@@ -341,8 +427,15 @@ public class IrodsSession : IDisposable
     /// <param name="path">Path of collection where should be searched</param>
     /// <param name="collectionId">Id of parent collection, will be queried if left unspecified</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
+    /// <param name="mode">The file mode for the data objects.</param>
     /// <returns>Array of matching objects</returns>
-    public DataObject[] QueryDataObject(string name, string path, int collectionId = -1, int maxRows = 500)
+    public DataObject[] QueryDataObjectPath(
+        string name,
+        string path,
+        int collectionId = -1,
+        int maxRows = 500,
+        Options.FileMode mode = Options.FileMode.ReadWrite
+    )
     {
         collectionId = CollectionCheck(collectionId, path);
 
@@ -352,7 +445,7 @@ public class IrodsSession : IDisposable
             new Condition(QueryModels.D_COLL_ID, "=", collectionId.ToString())
         };
 
-        return (DataObject[])Query(path, QueryModels.DataObject(), conditions.ToArray(), typeof(DataObject));
+        return QueryDataObject(path, QueryModels.DataObject(), conditions.ToArray(), mode, maxRows);
     }
 
     /// <summary>
@@ -383,7 +476,7 @@ public class IrodsSession : IDisposable
         if (metaUnits >= 0)
             conditions.Add(new Condition(QueryModels.COL_META_COLL_ATTR_UNITS, "=", metaUnits.ToString()));
 
-        return (Collection[])Query(path, QueryModels.Collection(), conditions.ToArray(), typeof(Collection));
+        return QueryCollection(QueryModels.Collection(), conditions.ToArray(), maxRows);
     }
 
     /// <summary>
@@ -415,7 +508,7 @@ public class IrodsSession : IDisposable
         if (metaUnits >= 0)
             conditions.Add(new Condition(QueryModels.COL_META_DATA_ATTR_UNITS, "=", metaUnits.ToString()));
 
-        return (DataObject[])Query(path, QueryModels.DataObject(), conditions.ToArray(), typeof(DataObject));
+        return QueryDataObject(path, QueryModels.DataObject(), conditions.ToArray(), Options.FileMode.ReadWrite, maxRows);
     }
 
     /// <summary>
@@ -428,11 +521,9 @@ public class IrodsSession : IDisposable
     {
         if (collectionId < 0)
         {
-            Collection[] coll = (Collection[])Query(
-                path,
+            Collection[] coll = QueryCollection(
                 QueryModels.Collection(),
-                new[] { new Condition(QueryModels.COLL_NAME, "like", (_home + path)) },
-                typeof(Collection)
+                new[] { new Condition(QueryModels.COLL_NAME, "like", _home + path) }
             );
             collectionId = coll[0].Id;
         }
@@ -447,22 +538,20 @@ public class IrodsSession : IDisposable
     /// <param name="type">Type of object</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of metadata</returns>
-    public Metadata[] QueryMetadata(string path, string type, int maxRows = 500)
+    public Metadata[] QueryMetadataPath(string path, string type, int maxRows = 500)
     {
         Condition[] conditions = Array.Empty<Condition>();
-        Column[] selects = Array.Empty<Column>();
+        Column[] select = Array.Empty<Column>();
         switch (type)
         {
             case "-c":
                 conditions = new[] { new Condition(QueryModels.COLL_NAME, "=", _home + path) };
-                selects = QueryModels.CollectionMeta();
+                select = QueryModels.CollectionMeta();
                 break;
             case "-d":
-                Collection[] coll = (Collection[])Query(
-                    path,
+                Collection[] coll = QueryCollection(
                     QueryModels.Collection(),
-                    new[] { new Condition(QueryModels.COLL_NAME, "=", _home + Path.First(path)) },
-                    typeof(Collection)
+                    new[] { new Condition(QueryModels.COLL_NAME, "=", _home + Path.First(path)) }
                 );
                 int collectionId = coll[0].Id;
                 conditions = new[]
@@ -470,11 +559,11 @@ public class IrodsSession : IDisposable
                     new Condition(QueryModels.DATA_NAME, "=", Path.Last(path)),
                     new Condition(QueryModels.D_COLL_ID, "=", collectionId.ToString())
                 };
-                selects = QueryModels.DataObjMeta();
+                select = QueryModels.DataObjMeta();
                 break;
         }
 
-        return (Metadata[])Query(path, selects, conditions, typeof(Metadata));
+        return QueryMetadata(select, conditions, maxRows);
     }
 
     #endregion
@@ -488,7 +577,7 @@ public class IrodsSession : IDisposable
     /// <param name="target">New name of collection</param>
     public void RenameCollection(string source, string target)
     {
-        Rename(source, target, true);
+        RenameCollectionOrDataObject(source, target, true);
     }
 
     /// <summary>
@@ -501,7 +590,7 @@ public class IrodsSession : IDisposable
     {
         if (id == -1)
         {
-            id = QueryCollection(Path.First(path), Path.Last(path), true)[0].Id;
+            id = QueryCollectionPath(Path.First(path), Path.Last(path), true)[0].Id;
         }
 
         return new Collection(new Path(path), id, this);

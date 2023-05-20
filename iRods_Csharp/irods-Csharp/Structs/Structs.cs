@@ -1,14 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 using irods_Csharp.Enums;
-using irods_Csharp.Objects;
-using Objects;
-using Objects.Objects;
 
 // ReSharper disable EmptyConstructor
 // ReSharper disable NotAccessedField.Local
@@ -701,72 +697,6 @@ public class GenQueryOutPi : Message
         ContinueInx = continueInx;
         TotalRowCount = totalRowCount;
         SqlResultPi = sqlResultPi;
-    }
-
-    public object Parse(
-        Type type,
-        IrodsSession session,
-        Path home,
-        Path path,
-        Options.FileMode mode = Options.FileMode.ReadWrite,
-        bool truncate = false
-    )
-    {
-        if (type == typeof(Collection))
-        {
-            Collection[] collections = new Collection[RowCnt];
-            const int collectionNameColumn = 1, collectionIdColumn = 0;
-
-            for (int i = 0; i < RowCnt; i++)
-            {
-                Collection collection = new (
-                    new Path(SqlResultPi[collectionNameColumn].Value[i].Replace(home.ToString(), "")),
-                    int.Parse(SqlResultPi[collectionIdColumn].Value[i]),
-                    session
-                );
-                collections[i] = collection;
-            }
-
-            return collections;
-        }
-
-        if (type == typeof(DataObject))
-        {
-            List<DataObject> objects = new ();
-            const int objNameColumn = 2;
-
-            HashSet<string> names = new ();
-
-            for (int i = 0; i < RowCnt; i++)
-            {
-                string name = SqlResultPi[objNameColumn].Value[i];
-                if (names.Add(name))
-                {
-                    DataObject dataObj = session.OpenDataObject(path + name, mode, truncate);
-                    objects.Add(dataObj);
-                }
-            }
-
-            return objects.ToArray();
-        }
-
-        if (type == typeof(Metadata))
-        {
-            Metadata[] objects = new Metadata[RowCnt];
-            const int metaNameColumn = 0, metaKeywordColumn = 1, metaUnitsColumn = 2;
-
-            for (int i = 0; i < RowCnt; i++)
-            {
-                string unitValue = SqlResultPi[metaUnitsColumn].Value[i];
-                int? units = unitValue == "" ? null : (int?)int.Parse(unitValue);
-                Metadata meta = new (SqlResultPi[metaNameColumn].Value[i], SqlResultPi[metaKeywordColumn].Value[i], units);
-                objects[i] = meta;
-            }
-
-            return objects;
-        }
-
-        throw new Exception("Unknown Type");
     }
 }
 

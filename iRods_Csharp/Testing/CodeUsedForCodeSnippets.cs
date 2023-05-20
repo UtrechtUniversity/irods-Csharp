@@ -4,7 +4,6 @@ using System.Text;
 using irods_Csharp;
 using irods_Csharp.Enums;
 using irods_Csharp.Objects;
-using Objects;
 using Objects.Objects;
 
 namespace Testing
@@ -77,7 +76,7 @@ namespace Testing
 
 
             // Query all collections within /example/dir with a name that contains the word "apple"
-            Collection[] collections = session.QueryCollection("/example/dir", "apple");
+            Collection[] collections = session.QueryCollectionPath("/example/dir", "apple");
 
             // A new query could be performed on the first of this collections, this time querying a data object
             // This particular query will find all .txt files within the collection

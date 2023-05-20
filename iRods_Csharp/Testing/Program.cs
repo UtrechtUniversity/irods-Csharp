@@ -6,7 +6,6 @@ using System.Text.Json;
 using irods_Csharp;
 using irods_Csharp.Enums;
 using irods_Csharp.Objects;
-using Objects;
 using Objects.Objects;
 using Path = System.IO.Path;
 
