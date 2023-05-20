@@ -26,7 +26,16 @@ public class IrodsSession : IDisposable
     /// <param name="scheme">The authentication scheme.</param>
     /// <param name="ttl">The hour the password secret will stay valid</param>
     /// <param name="requestServerNegotiation">Optional request server negotiation.</param>
-    public IrodsSession(string host, int port, string home, string user, string zone, AuthenticationScheme scheme, int ttl, ClientServerNegotiation? requestServerNegotiation)
+    public IrodsSession(
+        string host,
+        int port,
+        string home,
+        string user,
+        string zone,
+        AuthenticationScheme scheme,
+        int ttl,
+        ClientServerNegotiation? requestServerNegotiation
+    )
     {
         _account = new Account(host, port, home, user, zone, scheme, ttl);
         _connection = new Connection(_account, requestServerNegotiation);
@@ -49,6 +58,7 @@ public class IrodsSession : IDisposable
         string secret = _account.AuthenticationScheme switch
         {
             AuthenticationScheme.Pam => _connection.Pam(password),
+            AuthenticationScheme.Native => _connection.Native(password),
             _ => throw new Exception("Authentication method not implemented.")
         };
 

@@ -139,11 +139,6 @@ public class RErrMsgPi : Message
         Status = status;
         Msg = msg;
     }
-
-    public RErrMsgPi()
-    {
-        
-    }
 }
 
 [XmlType("None")]

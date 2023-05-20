@@ -38,7 +38,7 @@ internal class Connection : IDisposable
         serverSocket.Connect(_account.Host, _account.Port);
         _serverStream = new NetworkStream(serverSocket)
         {
-            ReadTimeout = 5000
+            ReadTimeout = 100000
         };
 
         if (_requestServerNegotiation == null)
@@ -207,6 +207,18 @@ internal class Connection : IDisposable
         Packet<AuthPlugReqOutPi> msgHeaderStructServer = ReceivePacket<AuthPlugReqOutPi>();
 
         return msgHeaderStructServer.MsgBody!.Result;
+    }
+
+    /// <summary>
+    /// Authentication native.
+    /// </summary>
+    /// <param name="password">The user password.</param>
+    /// <returns>The Native Password</returns>
+    public string Native(string password)
+    {
+        if (_serverStream is not SslStream) Secure();
+
+        return password;
     }
 
     /// <summary>

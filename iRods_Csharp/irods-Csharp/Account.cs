@@ -14,7 +14,12 @@ public enum AuthenticationScheme
     /// <summary>
     /// Pluggable Authentication Modules (PAM) authentication
     /// </summary>
-    Pam
+    Pam,
+
+    /// <summary>
+    /// Native authentication
+    /// </summary>
+    Native
 }
 
 /// <summary>
@@ -60,10 +65,10 @@ internal class Account
 
     /// <summary>
     /// Creates startup pack used to establish connection with server
-    /// Thomas Overbergh updated this to use rods 4.3.0.
     /// </summary>
     /// <returns>StartupPack_PI Irods Message</returns>
-    public StartupPackPi MakeStartupPack(string option = "") => new(Options.iRODSProt_t.XML_PROT, 0, 0, _userName, _zoneName, _userName, _zoneName, "rods4.3.0", "d", option);
+    public StartupPackPi MakeStartupPack(string option = "") =>
+        new (Options.iRODSProt_t.XML_PROT, 0, 0, _userName, _zoneName, _userName, _zoneName, "rods4.3.0", "d", option);
 
     /// <summary>
     /// Generates authentication response to secure connection with server

@@ -12,7 +12,16 @@ namespace Testing
         private static void SnippetMain()
         {
             // Setting up a session using login parameters
-            IrodsSession session = new IrodsSession("host.rods.nl", 9999, "/nlex1/home", "exampleuser@rods.com", "nlex1", AuthenticationScheme.Pam, 24, null);
+            IrodsSession session = new (
+                "host.rods.nl",
+                9999,
+                "/nlex1/home",
+                "exampleuser@rods.com",
+                "nlex1",
+                AuthenticationScheme.Pam,
+                24,
+                null
+            );
 
             // Getting hashed password
             string hashedPassword = session.Setup("secretPassword");

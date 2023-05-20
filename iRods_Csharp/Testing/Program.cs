@@ -24,12 +24,29 @@ namespace Testing
             string passwordLocation = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"..\..\..\password.txt"));
 
 
-            ClientServerPolicyRequest clientServerPolicy = ClientServerPolicyRequest.RequireSSL;
-            ClientServerNegotiation clientServerNegotiation = new ClientServerNegotiation(clientServerPolicy, accountOptions["irods_encryption_algorithm"], Convert.ToInt32(accountOptions["irods_encryption_encryption"]), Convert.ToInt32(accountOptions["irods_encryption_salt_size"]), Convert.ToInt32(accountOptions["irods_encryption_num_hash_rounds"]));
-
-            IrodsSession testSession = new IrodsSession(accountOptions["irods_host"], int.Parse(accountOptions["irods_port"]), accountOptions["irods_home"], accountOptions["irods_user_name"], accountOptions["irods_zone_name"], AuthenticationScheme.Pam, 24, clientServerNegotiation);
-
-
+            const ClientServerPolicyRequest clientServerPolicy = ClientServerPolicyRequest.RequireSSL;
+            ClientServerNegotiation clientServerNegotiation = new (
+                clientServerPolicy,
+                accountOptions["irods_encryption_algorithm"],
+                Convert.ToInt32(accountOptions["irods_encryption_encryption"]),
+                Convert.ToInt32(accountOptions["irods_encryption_salt_size"]),
+                Convert.ToInt32(accountOptions["irods_encryption_num_hash_rounds"])
+            );
+            IrodsSession testSession = new (
+                accountOptions["irods_host"],
+                int.Parse(accountOptions["irods_port"]),
+                accountOptions["irods_home"],
+                accountOptions["irods_user_name"],
+                accountOptions["irods_zone_name"],
+                accountOptions["irods_authentication_scheme"] switch
+                {
+                    "native" => AuthenticationScheme.Native,
+                    "pam" or _ => AuthenticationScheme.Pam
+                },
+                24,
+                clientServerNegotiation
+            );
+            
             bool connected = false;
             while (!connected)
             {
