@@ -1,9 +1,8 @@
 ﻿using System;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Xml;
 using System.Xml.Serialization;
+using Enums.Options;
 using irods_Csharp.Enums;
 
 // ReSharper disable EmptyConstructor
@@ -15,52 +14,6 @@ namespace irods_Csharp;
 
 public abstract class Message
 {
-}
-
-public class Packet<T>
-    where T : Message, new()
-{
-    [XmlElement("MsgHeader")]
-    public MsgHeaderPi MsgHeader { get; set; }
-    public byte[]? MsgBodyBytes { get; set; }
-
-    [XmlElement("MsgBody")]
-    public T? MsgBody
-    {
-        get => MsgBodyBytes == null ? null : MessageSerializer.Deserialize<T>(MsgBodyBytes);
-        set => MsgBodyBytes = value == null ? null : MessageSerializer.Serialize(value);
-    }
-    public byte[]? ErrorBytes { get; set; }
-    [XmlElement("Error")]
-    public RErrorPi? Error
-    {
-        get => ErrorBytes == null ? null : MessageSerializer.Deserialize<RErrorPi>(ErrorBytes);
-        set => ErrorBytes = value == null ? null : MessageSerializer.Serialize(value);
-    }
-    [XmlElement("Binary")]
-    public byte[]? Binary { get; set; }
-
-    public Packet()
-    {
-        MsgHeader = null!;
-    }
-
-    public Packet(int intInfo = 0, string type = MessageType.API_REQ)
-    {
-        MsgHeader = new MsgHeaderPi(type, 0, 0, 0, intInfo);
-    }
-
-    public override string ToString()
-    {
-        XmlWriterSettings prettySettings = new () { OmitXmlDeclaration = true, Indent = true };
-        XmlSerializerNamespaces emptyNameSpaces = new (new[] { XmlQualifiedName.Empty });
-
-        XmlSerializer serializer = new (GetType());
-        using StringWriter output = new ();
-        using XmlWriter writer = XmlWriter.Create(output, prettySettings);
-        serializer.Serialize(writer, this, emptyNameSpaces);
-        return output.ToString();
-    }
 }
 
 #region General
@@ -137,14 +90,6 @@ public class RErrMsgPi : Message
     }
 }
 
-[XmlType("None")]
-public class None : Message
-{
-    public None()
-    {
-    }
-}
-
 #endregion
 
 #region Start
@@ -187,7 +132,7 @@ public class StartupPackPi : Message
     }
 
     public StartupPackPi(
-        Options.iRODSProt_t irodsProt,
+        iRODSProt_t irodsProt,
         int reconnFlag,
         int connectCnt,
         string proxyUser,

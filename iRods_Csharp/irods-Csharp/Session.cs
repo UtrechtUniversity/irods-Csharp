@@ -4,6 +4,7 @@ using System.Linq;
 using irods_Csharp.Enums;
 using irods_Csharp.Objects;
 using Objects.Objects;
+using FileMode = Enums.Options.FileMode;
 
 namespace irods_Csharp;
 
@@ -14,7 +15,6 @@ public class IrodsSession : IDisposable
 {
     internal readonly Connection Connection;
     private readonly Account _account;
-    private readonly Path _home;
 
     /// <summary>
     /// IrodsSession constructor.
@@ -39,8 +39,7 @@ public class IrodsSession : IDisposable
     )
     {
         _account = new Account(host, port, home, user, zone, scheme, ttl);
-        _home = new Path(_account.Home);
-        Connection = new Connection(_account, requestServerNegotiation);
+        Connection = Connection.CreateConnection(_account, requestServerNegotiation);
     }
 
     /// <summary>
@@ -50,16 +49,12 @@ public class IrodsSession : IDisposable
     /// <returns>The authentication scheme secret.</returns>
     public string Setup(string password)
     {
-        Connection.Connect();
-
         string secret = _account.AuthenticationScheme switch
         {
             AuthenticationScheme.Pam => Connection.Pam(password),
             AuthenticationScheme.Native => Connection.Native(password),
             _ => throw new Exception("Authentication method not implemented.")
         };
-
-        Connection.Dispose();
 
         return secret;
     }
@@ -68,9 +63,8 @@ public class IrodsSession : IDisposable
     /// Connects to the server and authenticates using the authentication scheme secret.
     /// </summary>
     /// <param name="secret">The authentication scheme secret.</param>
-    public void Start(string secret)
+    public void Authenticate(string secret)
     {
-        Connection.Connect();
         Connection.AuthenticationRequest(secret);
     }
 
@@ -91,17 +85,16 @@ public class IrodsSession : IDisposable
     private void RenameCollectionOrDataObject(string source, string target, bool isCollection)
     {
         int type = isCollection ? 12 : 11;
-        Path home = new (_account.Home);
 
         Packet<DataObjCopyInpPi> renameRequest = new (ApiNumberData.DATA_OBJ_RENAME_AN)
         {
             MsgBody = new DataObjCopyInpPi
             {
-                Src = new DataObjInpPi(home + source, 0, 0, 0, 0, 0, type)
+                Src = new DataObjInpPi(source, 0, 0, 0, 0, 0, type)
                 {
                     KeyValPairPi = new KeyValPairPi(0, null, null)
                 },
-                Dest = new DataObjInpPi(home + target, 0, 0, 0, 0, 0, type)
+                Dest = new DataObjInpPi( target, 0, 0, 0, 0, 0, type)
                 {
                     KeyValPairPi = new KeyValPairPi(0, null, null)
                 },
@@ -109,7 +102,7 @@ public class IrodsSession : IDisposable
         };
         Connection.SendPacket(renameRequest);
 
-        Connection.ReceivePacket<None>();
+        Connection.ReceivePacket();
     }
 
     /// <summary>
@@ -118,10 +111,7 @@ public class IrodsSession : IDisposable
     /// <returns>Home collection of the session</returns>
     public Collection HomeCollection()
     {
-        Collection[] colls = QueryCollection(
-            QueryModels.Collection(),
-            new[] { new Condition(QueryModels.COLL_NAME, "like", _account.Home) }
-        );
+        Collection[] colls = QueryCollection(new[] { new Condition(QueryModels.COLL_NAME, "like", _account.Home) });
         return colls[0];
     }
 
@@ -145,45 +135,32 @@ public class IrodsSession : IDisposable
     /// <param name="truncate">Clear file when opening</param>
     /// <param name="create">Create file if it does not yet exist</param>
     /// <returns>DataObj object which can be used to read from or write to</returns>
-    public DataObject OpenDataObject(string path, Options.FileMode fileMode, bool truncate = false, bool create = false)
+    public DataObject OpenDataObject(string path, FileMode fileMode, bool truncate = false, bool create = false)
     {
         int flag = (int)fileMode;
         if (truncate) flag |= 512;
         const int cmode = 0644;
 
-        Packet<DataObjInpPi> descRequest;
-        if (create)
-            descRequest = new Packet<DataObjInpPi>(ApiNumberData.DATA_OBJ_CREATE_AN)
+        Packet<DataObjInpPi> descRequest = create
+            ? new Packet<DataObjInpPi>(ApiNumberData.DATA_OBJ_CREATE_AN)
             {
-                MsgBody = new DataObjInpPi(_home + path, cmode, flag, 0, -1, 0, 0)
+                MsgBody = new DataObjInpPi(path, cmode, flag, 0, -1, 0, 0)
                 {
                     KeyValPairPi = new KeyValPairPi(0, null, null)
                 }
-            };
-        else
-            descRequest = new Packet<DataObjInpPi>(ApiNumberData.DATA_OBJ_OPEN_AN)
+            }
+            : new Packet<DataObjInpPi>(ApiNumberData.DATA_OBJ_OPEN_AN)
             {
-                MsgBody = new DataObjInpPi(_home + path, 0, flag, 0, -1, 0, 0)
+                MsgBody = new DataObjInpPi(path, 0, flag, 0, -1, 0, 0)
                 {
                     KeyValPairPi = new KeyValPairPi(0, null, null)
                 }
             };
         Connection.SendPacket(descRequest);
 
-        Packet<None> descReply = Connection.ReceivePacket<None>();
+        Packet descReply = Connection.ReceivePacket();
         if (descReply.MsgHeader.IntInfo == 0) throw new Exception("File does not exist.");
-        return new DataObject(descReply.MsgHeader.IntInfo, new Path(path), this);
-    }
-
-    /// <summary>
-    /// Create new data object
-    /// </summary>
-    /// <param name="path">Path where data object should be created, including name</param>
-    public void CreateDataObject(string path)
-    {
-        using (OpenDataObject(path, Options.FileMode.Read, true, true))
-        {
-        }
+        return new DataObject(descReply.MsgHeader.IntInfo, path, this);
     }
 
     /// <summary>
@@ -193,7 +170,7 @@ public class IrodsSession : IDisposable
     /// <param name="file">Byte array which should be written</param>
     public void WriteDataObject(string path, byte[] file)
     {
-        using DataObject dataObj = OpenDataObject(path, Options.FileMode.Write, true);
+        using DataObject dataObj = OpenDataObject(path, FileMode.Write, true);
         dataObj.Write(file);
     }
 
@@ -205,7 +182,7 @@ public class IrodsSession : IDisposable
     /// <returns>Content of data object in byte array form</returns>
     public byte[] ReadDataObject(string path, int length = -1)
     {
-        using DataObject dataObj = OpenDataObject(path, Options.FileMode.Read);
+        using DataObject dataObj = OpenDataObject(path, FileMode.Read);
         return dataObj.Read(length);
     }
 
@@ -217,14 +194,11 @@ public class IrodsSession : IDisposable
     {
         Packet<DataObjInpPi> removeRequest = new (ApiNumberData.DATA_OBJ_UNLINK_AN)
         {
-            MsgBody = new DataObjInpPi(_home + path, 0, 0, 0, -1, 0, 0)
-            {
-                KeyValPairPi = new KeyValPairPi(0, null, null)
-            }
+            MsgBody = new DataObjInpPi(path, 0, 0, 0, -1, 0, 0) { KeyValPairPi = new KeyValPairPi(0, null, null) }
         };
         Connection.SendPacket(removeRequest);
 
-        Connection.ReceivePacket<None>();
+        Connection.ReceivePacket();
     }
 
     #endregion
@@ -242,12 +216,12 @@ public class IrodsSession : IDisposable
     {
         Packet<ModAvuMetadataInpPi> addMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
         {
-            MsgBody = new ModAvuMetadataInpPi("add", obj.MetaType, _home + obj.Path, name, value, units)
+            MsgBody = new ModAvuMetadataInpPi("add", obj.MetaType, obj.Path, name, value, units)
         };
 
         Connection.SendPacket(addMetaRequest);
 
-        Connection.ReceivePacket<None>();
+        Connection.ReceivePacket();
     }
 
     /// <summary>
@@ -262,12 +236,12 @@ public class IrodsSession : IDisposable
     {
         Packet<ModAvuMetadataInpPi> removeMetaRequest = new (ApiNumberData.MOD_AVU_METADATA_AN)
         {
-            MsgBody = new ModAvuMetadataInpPi("rm", obj.MetaType, _home + obj.Path, name, value, units)
+            MsgBody = new ModAvuMetadataInpPi("rm", obj.MetaType, obj.Path, name, value, units)
         };
 
         Connection.SendPacket(removeMetaRequest);
 
-        Connection.ReceivePacket<None>();
+        Connection.ReceivePacket();
     }
 
     #endregion
@@ -312,22 +286,22 @@ public class IrodsSession : IDisposable
     /// <summary>
     /// Perform general query with supplied conditions and select statements, casts results to supplied type.
     /// </summary>
-    /// <param name="select">Array of table columns which should be queried</param>
     /// <param name="conditions">Array of conditions for query</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of collections.</returns>
-    internal Collection[] QueryCollection(Column[] select, Condition[] conditions, int maxRows = 500)
+    internal Collection[] QueryCollection(Condition[] conditions, int maxRows = 500)
     {
-        GenQueryOutPi queryResult = Query(select, conditions, maxRows);
+        GenQueryOutPi queryResult = Query(new[] { QueryModels.COLL_ID, QueryModels.COLL_NAME }, conditions, maxRows);
 
-        const int collectionNameColumn = 1, collectionIdColumn = 0;
+        const int idColumn = 0, pathColumn = 1;
         return Enumerable.Range(0, queryResult.RowCnt)
             .Select(
-                i => new Collection(
-                    new Path(queryResult.SqlResultPi[collectionNameColumn].Value[i].Replace(_home.ToString(), "")),
-                    int.Parse(queryResult.SqlResultPi[collectionIdColumn].Value[i]),
-                    this
-                )
+                i =>
+                {
+                    int id = int.Parse(queryResult.SqlResultPi[idColumn].Value[i]);
+                    string path = queryResult.SqlResultPi[pathColumn].Value[i];
+                    return new Collection(this, id, path);
+                }
             )
             .ToArray();
     }
@@ -335,32 +309,25 @@ public class IrodsSession : IDisposable
     /// <summary>
     /// Perform general query with supplied conditions and select statements, casts results to supplied type.
     /// </summary>
-    /// <param name="path">The path of the data object.</param>
-    /// <param name="select">Array of table columns which should be queried</param>
     /// <param name="conditions">Array of conditions for query</param>
-    /// <param name="mode">The file mode for the data objects.</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of objects.</returns>
-    public DataObject[] QueryDataObject(
-        string path,
-        Column[] select,
-        Condition[] conditions,
-        Options.FileMode mode = Options.FileMode.ReadWrite,
-        int maxRows = 500
-    )
+    public DataObjectReference[] QueryDataObject(Condition[] conditions, int maxRows = 500)
     {
-        GenQueryOutPi queryResult = Query(select, conditions.ToArray(), maxRows);
+        GenQueryOutPi queryResult = Query(
+            new[] { QueryModels.D_DATA_ID, QueryModels.D_DATA_PATH },
+            conditions.ToArray(),
+            maxRows
+        );
 
-        const int objNameColumn = 2;
+        const int idColumn = 0, pathColumn = 1;
         return Enumerable.Range(0, queryResult.RowCnt)
             .Select(
                 i =>
                 {
-
-                    // TODO remove path and use from result.
-                    string newName = queryResult.SqlResultPi[objNameColumn].Value[i];
-                    DataObject dataObj = OpenDataObject(path + newName, mode);
-                    return dataObj;
+                    int id = int.Parse(queryResult.SqlResultPi[idColumn].Value[i]);
+                    string path = queryResult.SqlResultPi[pathColumn].Value[i];
+                    return new DataObjectReference(this, id, path);
                 }
             )
             .ToArray();
@@ -374,11 +341,7 @@ public class IrodsSession : IDisposable
     /// <param name="conditions">Array of conditions for query</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of metadata.</returns>
-    public Metadata[] QueryMetadata(
-        Column[] select,
-        Condition[] conditions,
-        int maxRows = 500
-    )
+    public Metadata[] QueryMetadata(Column[] select, Condition[] conditions, int maxRows = 500)
     {
         GenQueryOutPi queryResult = Query(select, conditions, maxRows);
 
@@ -410,14 +373,14 @@ public class IrodsSession : IDisposable
     public Collection[] QueryCollectionPath(string path, string name, bool strict = false, int maxRows = 500)
     {
         Condition[] conditions = strict
-            ? new[] { new Condition(QueryModels.COLL_NAME, "=", _home + path + "/" + name) }
+            ? new[] { new Condition(QueryModels.COLL_NAME, "=", $"{path}/{name}") }
             : new[]
             {
-                new Condition(QueryModels.COLL_NAME, "like", _home + path + "%"),
-                new Condition(QueryModels.COLL_NAME, "like", "%" + name + "%")
+                new Condition(QueryModels.COLL_NAME, "like", $"{path}/%"),
+                new Condition(QueryModels.COLL_NAME, "like", $"%{name}%")
             };
 
-        return QueryCollection(QueryModels.Collection(), conditions, maxRows);
+        return QueryCollection(conditions, maxRows);
     }
 
     /// <summary>
@@ -425,27 +388,20 @@ public class IrodsSession : IDisposable
     /// </summary>
     /// <param name="name">Name of Data Object which should be matched</param>
     /// <param name="path">Path of collection where should be searched</param>
-    /// <param name="collectionId">Id of parent collection, will be queried if left unspecified</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
-    /// <param name="mode">The file mode for the data objects.</param>
     /// <returns>Array of matching objects</returns>
-    public DataObject[] QueryDataObjectPath(
-        string name,
-        string path,
-        int collectionId = -1,
-        int maxRows = 500,
-        Options.FileMode mode = Options.FileMode.ReadWrite
-    )
+    public DataObjectReference[] QueryDataObjectPath(string name, string path, int maxRows = 500)
     {
-        collectionId = CollectionCheck(collectionId, path);
+        Condition[] collectionConditions = { new (QueryModels.COLL_NAME, "=", path) };
+        int collectionId = QueryCollection(collectionConditions, 2).Single().Id;
 
         List<Condition> conditions = new ()
         {
-            new Condition(QueryModels.DATA_NAME, "like", "%" + name + "%"),
+            new Condition(QueryModels.DATA_NAME, "like", $"%{name}%"),
             new Condition(QueryModels.D_COLL_ID, "=", collectionId.ToString())
         };
 
-        return QueryDataObject(path, QueryModels.DataObject(), conditions.ToArray(), mode, maxRows);
+        return QueryDataObject(conditions.ToArray(), maxRows);
     }
 
     /// <summary>
@@ -465,18 +421,14 @@ public class IrodsSession : IDisposable
         int maxRows = 500
     )
     {
-        List<Condition> conditions = new ()
-        {
-            new Condition(QueryModels.COLL_NAME, "like", _home + "%"),
-            new Condition(QueryModels.COLL_NAME, "like", "%" + path + "/%")
-        };
+        List<Condition> conditions = new () { new Condition(QueryModels.COLL_NAME, "like", $"%{path}%") };
 
         if (metaName != "") conditions.Add(new Condition(QueryModels.COL_META_COLL_ATTR_NAME, "=", metaName));
         if (metaValue != "") conditions.Add(new Condition(QueryModels.COL_META_COLL_ATTR_VALUE, "=", metaValue));
         if (metaUnits >= 0)
             conditions.Add(new Condition(QueryModels.COL_META_COLL_ATTR_UNITS, "=", metaUnits.ToString()));
 
-        return QueryCollection(QueryModels.Collection(), conditions.ToArray(), maxRows);
+        return QueryCollection(conditions.ToArray(), maxRows);
     }
 
     /// <summary>
@@ -486,49 +438,30 @@ public class IrodsSession : IDisposable
     /// <param name="metaName">Name of meta triplet to search</param>
     /// <param name="metaValue">Value of meta triplet to search</param>
     /// <param name="metaUnits">Units of meta triplet to search</param>
-    /// <param name="collectionId">Id of parent collection, will be queried if left unspecified</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of matching objects</returns>
-    public DataObject[] MQueryDataObject(
+    public DataObjectReference[] MQueryDataObject(
         string path,
         string metaName = "",
         string metaValue = "",
         int metaUnits = -1,
-        int collectionId = -1,
         int maxRows = 500
     )
     {
-        collectionId = CollectionCheck(collectionId, path);
-
         List<Condition> conditions = new ();
-        if (path != "") conditions.Add(new Condition(QueryModels.D_COLL_ID, "=", collectionId.ToString()));
+        if (path != "")
+        {
+            Condition[] collectionConditions = { new (QueryModels.COLL_NAME, "=", path) };
+            int collectionId = QueryCollection(collectionConditions, 2).Single().Id;
+            conditions.Add(new Condition(QueryModels.D_COLL_ID, "=", collectionId.ToString()));
+        }
 
         if (metaName != "") conditions.Add(new Condition(QueryModels.COL_META_DATA_ATTR_NAME, "=", metaName));
         if (metaValue != "") conditions.Add(new Condition(QueryModels.COL_META_DATA_ATTR_VALUE, "=", metaValue));
         if (metaUnits >= 0)
             conditions.Add(new Condition(QueryModels.COL_META_DATA_ATTR_UNITS, "=", metaUnits.ToString()));
 
-        return QueryDataObject(path, QueryModels.DataObject(), conditions.ToArray(), Options.FileMode.ReadWrite, maxRows);
-    }
-
-    /// <summary>
-    /// Finds id corresponding to path, if this isn't given.
-    /// </summary>
-    /// <param name="collectionId">Id of collection, if it negative then the id still needs to be found</param>
-    /// <param name="path">Path to collection</param>
-    /// <returns>Collection id</returns>
-    private int CollectionCheck(int collectionId, string path)
-    {
-        if (collectionId < 0)
-        {
-            Collection[] coll = QueryCollection(
-                QueryModels.Collection(),
-                new[] { new Condition(QueryModels.COLL_NAME, "like", _home + path) }
-            );
-            collectionId = coll[0].Id;
-        }
-
-        return collectionId;
+        return QueryDataObject(conditions.ToArray(), maxRows);
     }
 
     /// <summary>
@@ -545,18 +478,17 @@ public class IrodsSession : IDisposable
         switch (type)
         {
             case "-c":
-                conditions = new[] { new Condition(QueryModels.COLL_NAME, "=", _home + path) };
+                conditions = new[] { new Condition(QueryModels.COLL_NAME, "=", path) };
                 select = QueryModels.CollectionMeta();
                 break;
             case "-d":
                 Collection[] coll = QueryCollection(
-                    QueryModels.Collection(),
-                    new[] { new Condition(QueryModels.COLL_NAME, "=", _home + Path.First(path)) }
+                    new[] { new Condition(QueryModels.COLL_NAME, "=", PathUtil.First(path)) }
                 );
                 int collectionId = coll[0].Id;
                 conditions = new[]
                 {
-                    new Condition(QueryModels.DATA_NAME, "=", Path.Last(path)),
+                    new Condition(QueryModels.DATA_NAME, "=", PathUtil.Last(path)),
                     new Condition(QueryModels.D_COLL_ID, "=", collectionId.ToString())
                 };
                 select = QueryModels.DataObjMeta();
@@ -584,16 +516,10 @@ public class IrodsSession : IDisposable
     /// Looks for collection on server.
     /// </summary>
     /// <param name="path">Path to collection parent</param>
-    /// <param name="id">Id of collection, will be queried if not supplied</param>
     /// <returns>Collection object</returns>
-    public Collection OpenCollection(string path, int id = -1)
+    public Collection OpenCollection(string path)
     {
-        if (id == -1)
-        {
-            id = QueryCollectionPath(Path.First(path), Path.Last(path), true)[0].Id;
-        }
-
-        return new Collection(new Path(path), id, this);
+        return QueryCollectionPath(PathUtil.First(path), PathUtil.Last(path), true).Single();
     }
 
     /// <summary>
@@ -605,11 +531,11 @@ public class IrodsSession : IDisposable
         KeyValPairPi mkdirRequestMsgPair = new (0, Array.Empty<string>(), Array.Empty<string>());
         Packet<CollInpNewPi> mkdirRequest = new (ApiNumberData.COLL_CREATE_AN)
         {
-            MsgBody = new CollInpNewPi(_home + path, 0, 0, mkdirRequestMsgPair)
+            MsgBody = new CollInpNewPi(path, 0, 0, mkdirRequestMsgPair)
         };
         Connection.SendPacket(mkdirRequest);
 
-        Connection.ReceivePacket<None>();
+        Connection.ReceivePacket();
     }
 
     /// <summary>
@@ -621,7 +547,7 @@ public class IrodsSession : IDisposable
     {
         Packet<CollInpNewPi> rmdirRequest = new (ApiNumberData.RM_COLL_AN)
         {
-            MsgBody = new CollInpNewPi(_home + path, 0, 0)
+            MsgBody = new CollInpNewPi(path, 0, 0)
             {
                 KeyValPairPi = recursive
                     ? new KeyValPairPi(1, new[] { "recursiveOpr" }, new[] { "" })

@@ -15,54 +15,53 @@ namespace irods_Csharp;
 internal class Connection : IDisposable
 {
     private readonly Account _account;
-    private readonly ClientServerNegotiation? _requestServerNegotiation;
-    private Stream _serverStream;
+    private Stream _stream;
 
     /// <summary>
     /// Connection constructor.
     /// </summary>
     /// <param name="account">Used for connecting and verification.</param>
-    /// <param name="requestServerNegotiation"></param>
-    public Connection(Account account, ClientServerNegotiation? requestServerNegotiation)
+    /// <param name="serverStream">Data stream</param>
+    private Connection(Account account, Stream serverStream)
     {
         _account = account;
-        _requestServerNegotiation = requestServerNegotiation;
-        Connect();
+        _stream = serverStream;
     }
 
     /// <summary>
     /// Creates a connection to the server and sends a RODS_CONNECT message for identification.
     /// </summary>
-    public void Connect()
+    public static Connection CreateConnection(Account account, ClientServerNegotiation? requestServerNegotiation)
     {
         Socket serverSocket = new (SocketType.Stream, ProtocolType.Tcp);
-        serverSocket.Connect(_account.Host, _account.Port);
-        _serverStream = new NetworkStream(serverSocket)
+        serverSocket.Connect(account.Host, account.Port);
+        NetworkStream serverStream = new (serverSocket)
         {
             ReadTimeout = 100000
         };
+        Connection connection = new (account, serverStream);
 
-        if (_requestServerNegotiation == null)
+        if (requestServerNegotiation == null)
         {
             Packet<StartupPackPi> connectionRequest = new (type: MessageType.CONNECT)
             {
-                MsgBody = _account.MakeStartupPack()
+                MsgBody = account.MakeStartupPack()
             };
-            SendPacket(connectionRequest);
+            connection.SendPacket(connectionRequest);
 
-            ReceivePacket<VersionPi>();
+            connection.ReceivePacket<VersionPi>();
         }
         else
         {
-            ClientServerPolicyRequest clientPolicy = _requestServerNegotiation.ClientServerPolicy;
+            ClientServerPolicyRequest clientPolicy = requestServerNegotiation.ClientServerPolicy;
 
             Packet<StartupPackPi> connectionRequest = new (type: MessageType.CONNECT)
             {
-                MsgBody = _account.MakeStartupPack("request_server_negotiation")
+                MsgBody = account.MakeStartupPack("request_server_negotiation")
             };
-            SendPacket(connectionRequest);
+            connection.SendPacket(connectionRequest);
 
-            ClientServerPolicyRequest serverPolicy = ReceivePacket<CsNegPi>().MsgBody!.ServerPolicy;
+            ClientServerPolicyRequest serverPolicy = connection.ReceivePacket<CsNegPi>().MsgBody!.ServerPolicy;
 
             ClientServerPolicyResult agreedPolicy = (clientPolicy, serverPolicy) switch
             {
@@ -84,19 +83,19 @@ internal class Connection : IDisposable
             {
                 MsgBody = new CsNegPi(agreedPolicy)
             };
-            SendPacket(negotationRequest);
+            connection.SendPacket(negotationRequest);
 
-            ReceivePacket<VersionPi>();
+            connection.ReceivePacket<VersionPi>();
 
             switch (agreedPolicy)
             {
                 case ClientServerPolicyResult.Failure:
-                    _serverStream.Dispose();
+                    serverStream.Dispose();
                     throw new Exception(
                         $"Failed to negotiate policy, client wants: {clientPolicy} while server wants: {serverPolicy}"
                     );
                 case ClientServerPolicyResult.UseSSL:
-                    SecureWithSecret(_requestServerNegotiation);
+                    connection.SecureWithSecret(requestServerNegotiation);
                     break;
                 case ClientServerPolicyResult.UseTCP:
                     // Continue as normal.
@@ -106,6 +105,7 @@ internal class Connection : IDisposable
             }
         }
 
+        return connection;
     }
 
     /// <summary>
@@ -113,10 +113,10 @@ internal class Connection : IDisposable
     /// </summary>
     public void Dispose()
     {
-        Packet<None> disconnectRequest = new (type: MessageType.DISCONNECT);
+        Packet disconnectRequest = new (type: MessageType.DISCONNECT);
         SendPacket(disconnectRequest);
 
-        _serverStream.Dispose();
+        _stream.Dispose();
     }
 
     /// <summary>
@@ -124,12 +124,12 @@ internal class Connection : IDisposable
     /// </summary>
     public void SecureWithSecret(ClientServerNegotiation negotiation)
     {
-        SslStream secureServerStream = new (_serverStream, false);
+        SslStream secureServerStream = new (_stream, false);
         secureServerStream.AuthenticateAsClient(_account.Host);
 
-        _serverStream = secureServerStream;
+        _stream = secureServerStream;
 
-        Packet<None> encryptionRequest = new ()
+        Packet encryptionRequest = new ()
         {
             MsgHeader = new MsgHeaderPi(
                 negotiation.Algorithm,
@@ -141,13 +141,11 @@ internal class Connection : IDisposable
         };
         SendPacket(encryptionRequest);
 
-        Packet<None> keyRequest = new (type: "SHARED_SECRET")
+        Packet keyRequest = new (type: "SHARED_SECRET")
         {
             MsgBodyBytes = RandomNumberGenerator.GetBytes(negotiation.KeySize)
         };
         SendPacket(keyRequest);
-
-   
     }
 
     /// <summary>
@@ -161,12 +159,12 @@ internal class Connection : IDisposable
         };
         SendPacket(sslRequest);
 
-        ReceivePacket<None>();
+        ReceivePacket();
 
-        SslStream secureServerStream = new (_serverStream, false);
+        SslStream secureServerStream = new (_stream, false);
         secureServerStream.AuthenticateAsClient(_account.Host);
 
-        _serverStream = secureServerStream;
+        _stream = secureServerStream;
     }
 
     /// <summary>
@@ -175,7 +173,7 @@ internal class Connection : IDisposable
     /// <param name="password">The account / PAM password.</param>
     public void AuthenticationRequest(string password)
     {
-        Packet<None> authRequest = new (ApiNumberData.AUTH_REQUEST_AN);
+        Packet authRequest = new (ApiNumberData.AUTH_REQUEST_AN);
         SendPacket(authRequest);
 
         Packet<AuthRequestOutPi> authRequestReply = ReceivePacket<AuthRequestOutPi>();
@@ -186,7 +184,7 @@ internal class Connection : IDisposable
         };
         SendPacket(authResponse);
 
-        ReceivePacket<None>();
+        ReceivePacket();
     }
 
     /// <summary>
@@ -196,7 +194,7 @@ internal class Connection : IDisposable
     /// <returns>The PAM password.</returns>
     public string Pam(string password)
     {
-        if (_serverStream is not SslStream) Secure();
+        if (_stream is not SslStream) Secure();
 
         Packet<AuthPlugReqInpPi> msgHeaderStructClient = new (ApiNumberData.AUTH_PLUG_REQ_AN)
         {
@@ -217,9 +215,35 @@ internal class Connection : IDisposable
     /// <returns>The Native Password</returns>
     public string Native(string password)
     {
-        if (_serverStream is not SslStream) Secure();
+        if (_stream is not SslStream) Secure();
 
         return password;
+    }
+
+    /// <summary>
+    /// Sends a packet without type to the server.
+    /// </summary>
+    /// <param name="packet">The packet to send to the server.</param>
+    public void SendPacket(Packet packet)
+    {
+        WriteLog(ConsoleColor.DarkGray, packet);
+
+        if (packet.MsgBodyBytes != null) packet.MsgHeader.MsgLen = packet.MsgBodyBytes.Length;
+        if (packet.ErrorBytes != null) packet.MsgHeader.ErrorLen = packet.ErrorBytes.Length;
+        if (packet.Binary != null) packet.MsgHeader.BsLen = packet.Binary.Length;
+
+        byte[] msgHeaderClientBytes = MessageSerializer.Serialize(packet.MsgHeader);
+
+        // Make sure the bytes are send out in the correct order.
+        byte[] headerBytes = BitConverter.GetBytes(msgHeaderClientBytes.Length);
+        if (BitConverter.IsLittleEndian) headerBytes = headerBytes.Reverse().ToArray();
+
+        SendBytes(headerBytes);
+        SendBytes(msgHeaderClientBytes);
+
+        if (packet.MsgBodyBytes != null) SendBytes(packet.MsgBodyBytes);
+        if (packet.ErrorBytes != null) SendBytes(packet.ErrorBytes);
+        if (packet.Binary != null) SendBytes(packet.Binary);
     }
 
     /// <summary>
@@ -251,6 +275,26 @@ internal class Connection : IDisposable
     }
 
     /// <summary>
+    /// Receives a packet without type from the server.
+    /// </summary>
+    /// <returns>The packet received from the server.</returns>
+    public Packet ReceivePacket()  
+    {
+        Packet packet = new() { MsgHeader = ReceiveMessage<MsgHeaderPi>() };
+        if (packet.MsgHeader.MsgLen > 0) packet.MsgBodyBytes = ReceiveBytes(packet.MsgHeader.MsgLen);
+        if (packet.MsgHeader.ErrorLen > 0) packet.ErrorBytes = ReceiveBytes(packet.MsgHeader.ErrorLen);
+        if (packet.MsgHeader.BsLen > 0) packet.Binary = ReceiveBytes(packet.MsgHeader.BsLen);
+        WriteLog(ConsoleColor.Gray, packet);
+        if (packet.MsgHeader.IntInfo >= 0) return packet;
+
+        Exception e =
+            new(Table.ApiErrorData[packet.MsgHeader.IntInfo])
+            {
+                Data = { ["error"] = packet.Error }
+            };
+        throw e;
+    }
+    /// <summary>
     /// Receives a packet of type T from the server.
     /// </summary>
     /// <typeparam name="T">The type of an IRodsMessage subclass.</typeparam>
@@ -258,8 +302,8 @@ internal class Connection : IDisposable
     public Packet<T> ReceivePacket<T>() where T : Message, new()
     {
         Packet<T> packet = new() { MsgHeader = ReceiveMessage<MsgHeaderPi>() };
-        if (packet.MsgHeader.MsgLen > 0) packet.MsgBody = ReceiveMessage<T>(packet.MsgHeader.MsgLen);
-        if (packet.MsgHeader.ErrorLen > 0) packet.Error = ReceiveMessage<RErrorPi>(packet.MsgHeader.ErrorLen);
+        if (packet.MsgHeader.MsgLen > 0) packet.MsgBodyBytes = ReceiveBytes(packet.MsgHeader.MsgLen);
+        if (packet.MsgHeader.ErrorLen > 0) packet.ErrorBytes = ReceiveBytes(packet.MsgHeader.ErrorLen);
         if (packet.MsgHeader.BsLen > 0) packet.Binary = ReceiveBytes(packet.MsgHeader.BsLen);
         WriteLog(ConsoleColor.Gray, packet);
         if (packet.MsgHeader.IntInfo >= 0) return packet;
@@ -294,7 +338,7 @@ internal class Connection : IDisposable
     private void SendBytes(byte[] bytes)
     {
         if (bytes.Length == 0) return;
-        _serverStream.Write(bytes, 0, bytes.Length);
+        _stream.Write(bytes, 0, bytes.Length);
     }
 
     /// <summary>
@@ -308,7 +352,7 @@ internal class Connection : IDisposable
         byte[] output = new byte[length];
         while (size < length)
         {
-            size += _serverStream.Read(output, size, length - size);
+            size += _stream.Read(output, size, length - size);
         }
         return output;
     }

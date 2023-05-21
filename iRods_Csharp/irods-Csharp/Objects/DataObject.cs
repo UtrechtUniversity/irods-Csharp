@@ -1,7 +1,7 @@
 ﻿using System;
+using Enums.Options;
 using irods_Csharp;
 using irods_Csharp.Objects;
-using static irods_Csharp.Options.SeekMode;
 
 namespace Objects.Objects;
 
@@ -13,9 +13,8 @@ public class DataObject : ITaggable, IDisposable
     internal int Descriptor;
 
     private readonly IrodsSession _session;
-    private readonly Path _path;
 
-    public string Path => _path;
+    public string Path { get; }
 
     public string MetaType => "-d";
 
@@ -25,11 +24,11 @@ public class DataObject : ITaggable, IDisposable
     /// <param name="descriptor">FileDescriptor received from server</param>
     /// <param name="path">Path to data object</param>
     /// <param name="session">Session used to perform methods</param>
-    internal DataObject(int descriptor, Path path, IrodsSession session)
+    internal DataObject(int descriptor, string path, IrodsSession session)
     {
-        Descriptor = descriptor;
-        _path = path;
         _session = session;
+        Descriptor = descriptor;
+        Path = path;
     }
 
     /// <summary>
@@ -37,7 +36,7 @@ public class DataObject : ITaggable, IDisposable
     /// </summary>
     public void Dispose()
     {
-        Packet<OpenedDataObjInpPi> descRequest = new(ApiNumberData.DATA_OBJ_CLOSE_AN)
+        Packet<OpenedDataObjInpPi> descRequest = new (ApiNumberData.DATA_OBJ_CLOSE_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, 0, 0, 0, 0, 0)
             {
@@ -47,7 +46,7 @@ public class DataObject : ITaggable, IDisposable
 
         _session.Connection.SendPacket(descRequest);
 
-        _session.Connection.ReceivePacket<None>();
+        _session.Connection.ReceivePacket();
     }
 
     /// <summary>
@@ -56,7 +55,7 @@ public class DataObject : ITaggable, IDisposable
     /// <param name="file">Data to write</param>
     public void Write(byte[] file)
     {
-        Packet<OpenedDataObjInpPi> writeRequest = new(ApiNumberData.DATA_OBJ_WRITE_AN)
+        Packet<OpenedDataObjInpPi> writeRequest = new (ApiNumberData.DATA_OBJ_WRITE_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, file.Length, 0, 0, 0, 0)
             {
@@ -66,7 +65,7 @@ public class DataObject : ITaggable, IDisposable
         };
         _session.Connection.SendPacket(writeRequest);
 
-        _session.Connection.ReceivePacket<None>();
+        _session.Connection.ReceivePacket();
     }
 
     /// <summary>
@@ -75,12 +74,12 @@ public class DataObject : ITaggable, IDisposable
     /// <param name="file">Data to write</param>
     public void Insert(byte[] file)
     {
-        int current = Seek(0, Offset);
+        int current = Seek(0, SeekMode.Offset);
         byte[] content = Read();
-        Seek(current, Start);
+        Seek(current, SeekMode.Start);
         Write(file);
         Write(content);
-        Seek(-content.Length, End);
+        Seek(-content.Length, SeekMode.End);
     }
 
     /// <summary>
@@ -89,9 +88,9 @@ public class DataObject : ITaggable, IDisposable
     /// <param name="offset">Offset from which to seek</param>
     /// <param name="seekMode">From where offset should be placed</param>
     /// <returns>Pointer to place in file</returns>
-    public int Seek(int offset, Options.SeekMode seekMode)
+    public int Seek(int offset, SeekMode seekMode)
     {
-        Packet<OpenedDataObjInpPi> readRequest = new(ApiNumberData.DATA_OBJ_LSEEK_AN)
+        Packet<OpenedDataObjInpPi> readRequest = new (ApiNumberData.DATA_OBJ_LSEEK_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, 0, (int)seekMode, 0, offset, 0)
             {
@@ -114,7 +113,7 @@ public class DataObject : ITaggable, IDisposable
     {
         if (length == -1) length = Left();
 
-        Packet<OpenedDataObjInpPi> readRequest = new(ApiNumberData.DATA_OBJ_READ_AN)
+        Packet<OpenedDataObjInpPi> readRequest = new (ApiNumberData.DATA_OBJ_READ_AN)
         {
             MsgBody = new OpenedDataObjInpPi(Descriptor, length, 0, 0, 0, 0)
             {
@@ -123,7 +122,7 @@ public class DataObject : ITaggable, IDisposable
         };
         _session.Connection.SendPacket(readRequest);
 
-        Packet<None> readReply = _session.Connection.ReceivePacket<None>();
+        Packet readReply = _session.Connection.ReceivePacket();
 
         return readReply.Binary ?? Array.Empty<byte>();
     }
@@ -133,7 +132,7 @@ public class DataObject : ITaggable, IDisposable
     /// </summary>
     public void Remove()
     {
-        _session.RemoveDataObject(_path);
+        _session.RemoveDataObject(Path);
     }
 
     /// <summary>
@@ -142,9 +141,9 @@ public class DataObject : ITaggable, IDisposable
     /// <returns>The amount of bytes left.</returns>
     public int Left()
     {
-        int current = Seek(0, Offset);
-        int end = Seek(0, End);
-        Seek(current, Start);
+        int current = Seek(0, SeekMode.Offset);
+        int end = Seek(0, SeekMode.End);
+        Seek(current, SeekMode.Start);
         return end - current;
     }
 
@@ -155,7 +154,7 @@ public class DataObject : ITaggable, IDisposable
     /// <returns>Metadata attached to data object</returns>
     public Metadata[] QueryMetadata(int maxRows = 500)
     {
-        return _session.QueryMetadataPath(_path, "-d", maxRows);
+        return _session.QueryMetadataPath(Path, "-d", maxRows);
     }
 
     /// <summary>

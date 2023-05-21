@@ -328,5 +328,5 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
-/iRods_Csharp/Testing/password.txt
-/iRods_Csharp/Testing/irods_environment.json
+
+**/appsettings.Development.json

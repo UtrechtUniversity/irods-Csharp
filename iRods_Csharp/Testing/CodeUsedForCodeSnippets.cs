@@ -5,6 +5,7 @@ using irods_Csharp;
 using irods_Csharp.Enums;
 using irods_Csharp.Objects;
 using Objects.Objects;
+using FileMode = Enums.Options.FileMode;
 
 namespace Testing
 {
@@ -30,7 +31,7 @@ namespace Testing
             string hashedPassword = session.Setup("secretPassword");
 
             // Starting session
-            session.Start(hashedPassword);
+            session.Authenticate(hashedPassword);
 
             
             // Creating a new collection inside a directory which already exists
@@ -50,10 +51,10 @@ namespace Testing
 
 
             // Creating a new Data object inside a pre-existing directory
-            session.CreateDataObject("exampleDir/newObject.txt");
+            session.OpenDataObject("exampleDir/newObject.txt", FileMode.Read, false, true);
 
             // Opening this new data object
-            DataObject newObject = session.OpenDataObject("exampleDir/newObject.txt", Options.FileMode.ReadWrite);
+            DataObject newObject = session.OpenDataObject("exampleDir/newObject.txt", Enums.Options.FileMode.ReadWrite);
 
             // Writing data to this new file
             newObject.Write(File.ReadAllBytes("myPc/exampleFile.txt"));
@@ -80,10 +81,10 @@ namespace Testing
 
             // A new query could be performed on the first of this collections, this time querying a data object
             // This particular query will find all .txt files within the collection
-            DataObject[] objects = collections[0].QueryDataObject(".txt");
+            DataObjectReference[] objects = collections[0].QueryDataObject(".txt");
 
             // It is also possible to query based on meta data
-            DataObject[] objects2 = session.MQueryDataObject("/example/dir", "color", "red", 5);
+            DataObjectReference[] objects2 = session.MQueryDataObject("/example/dir", "color", "red", 5);
 
             // Not all meta data triple values need to be specified however,
             // this wil query all collections within newCollection
