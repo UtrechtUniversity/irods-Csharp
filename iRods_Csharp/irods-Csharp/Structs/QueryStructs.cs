@@ -52,6 +52,7 @@ public enum SqlType
 
 /// <summary>
 /// Models for all things that can be queried
+/// <summary>
 public static class QueryModels 
 {
     /// <summary>
