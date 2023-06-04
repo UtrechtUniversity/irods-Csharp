@@ -253,34 +253,60 @@ public class IrodsSession : IDisposable
     /// </summary>
     /// <param name="select">Array of table columns which should be queried</param>
     /// <param name="conditions">Array of conditions for query</param>
-    /// <param name="maxRows">Maximum amount of rows to query</param>
+    /// <param name="maxRows">Maximum amount of rows to query, use -1 to return all rows</param>
     /// <returns>Array of objects of the supplied type</returns>
     private GenQueryOutPi Query(Column[] select, Condition[] conditions, int maxRows = 500)
     {
-        InxIvalPairPi selects = new (
+        GenQueryOutPi Result = new();
+
+        InxIvalPairPi selects = new(
             select.Length,
             select.Select(x => x.Id).ToArray(),
             Enumerable.Repeat(1, select.Length).ToArray()
         );
-        InxValPairPi cConditions = new (
+        InxValPairPi cConditions = new(
             conditions.Length,
             conditions.Select(x => x.Column.Id).ToArray(),
             conditions.Select(x => x.ToString()).ToArray()
         );
 
         //TODO Implement keyword conditions
-        KeyValPairPi kConditions = new (0, null, null);
+        KeyValPairPi kConditions = new(0, null, null);
 
-        Packet<GenQueryInpPi> query = new (ApiNumberData.GEN_QUERY_AN)
+        int continueInx = 0;
+        int partialStartIndex = 0;
+        do
         {
-            MsgBody = new GenQueryInpPi(maxRows, 0, 0, 0, kConditions, selects, cConditions)
-        };
 
-        Connection.SendPacket(query);
+            Packet<GenQueryInpPi> query = new(ApiNumberData.GEN_QUERY_AN)
+            {
+                MsgBody = new GenQueryInpPi((maxRows == -1) ? 500 : maxRows, continueInx, partialStartIndex, 0, kConditions, selects, cConditions)
+            };
 
-        Packet<GenQueryOutPi> queryResult = Connection.ReceivePacket<GenQueryOutPi>();
+            Connection.SendPacket(query);
 
-        return queryResult.MsgBody!;
+            Packet<GenQueryOutPi> queryResult = Connection.ReceivePacket<GenQueryOutPi>();
+
+            continueInx = (maxRows == -1) ? queryResult.MsgBody.ContinueInx : 0;
+            partialStartIndex = queryResult.MsgBody.RowCnt;
+
+            if (Result.RowCnt == 0)
+            {
+                Result = queryResult.MsgBody;
+            }
+            else
+            {
+                Result.RowCnt += queryResult.MsgBody.RowCnt;
+                for (int j = 0; j < queryResult.MsgBody.AttriCnt; j++)
+                {
+                    Result.SqlResultPi[j].Value = Result.SqlResultPi[j].Value.Concat(queryResult.MsgBody.SqlResultPi[j].Value).ToArray();
+                }
+            }
+        }
+        while (continueInx > 0);
+
+        return Result!;
+
     }
 
     /// <summary>
@@ -289,7 +315,7 @@ public class IrodsSession : IDisposable
     /// <param name="conditions">Array of conditions for query</param>
     /// <param name="maxRows">Maximum amount of rows to query</param>
     /// <returns>Array of collections.</returns>
-    internal Collection[] QueryCollection(Condition[] conditions, int maxRows = 500)
+    public Collection[] QueryCollection(Condition[] conditions, int maxRows = 500)
     {
         GenQueryOutPi queryResult = Query(new[] { QueryModels.COLL_ID, QueryModels.COLL_NAME }, conditions, maxRows);
 

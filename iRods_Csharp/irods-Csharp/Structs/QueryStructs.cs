@@ -52,8 +52,8 @@ public enum SqlType
 
 /// <summary>
 /// Models for all things that can be queried
-/// </summary>
-internal static class QueryModels 
+/// <summary>
+public static class QueryModels 
 {
     /// <summary>
     /// Columns belonging to data objects
